@@ -344,7 +344,13 @@ if 'df' in st.session_state:
         )
 
     with col_btn3:
-        # Botón de envío por correo
-        if st.button("📧 Enviar por Correo", use_container_width=True):
-            st.success("¡El reporte ha sido enviado exitosamente!")
-            st.balloons()
+        # Botón desplegable para pedir el correo
+        with st.popover("📧 Enviar por Correo", use_container_width=True):
+            correo_destino = st.text_input("Ingresa el correo destino:", placeholder="ejemplo@correo.com")
+            
+            if st.button("Confirmar Envío", type="primary", use_container_width=True):
+                if correo_destino == "":
+                    st.error("⚠️ Por favor, escribe un correo antes de enviar.")
+                else:
+                    st.success(f"¡El reporte ha sido enviado exitosamente a {correo_destino}!")
+                    st.balloons()
