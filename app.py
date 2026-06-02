@@ -274,7 +274,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         labels_ocio = conteo_ocio.index
     else:
         bins = pd.cut(ocio_series, bins=4)
-        conteo_ocio = pd.value_counts(bins).sort_index()
+        conteo_ocio = bins.value_counts().sort_index()
         conteo_ocio = conteo_ocio[conteo_ocio > 0]
         labels_ocio = [f"De {max(0, b.left):.2f} a {b.right:.2f} min" for b in conteo_ocio.index]
 
