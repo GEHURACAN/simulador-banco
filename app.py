@@ -344,13 +344,58 @@ if 'df' in st.session_state:
         )
 
     with col_btn3:
-        # Botón desplegable para pedir el correo
+        # Menú desplegable con el formulario exacto de tu imagen
         with st.popover("📧 Enviar por Correo", use_container_width=True):
-            correo_destino = st.text_input("Ingresa el correo destino:", placeholder="ejemplo@correo.com")
+            st.markdown("**Datos de Envío (Usa Gmail con Contraseña de Aplicación):**")
             
-            if st.button("Confirmar Envío", type="primary", use_container_width=True):
-                if correo_destino == "":
-                    st.error("⚠️ Por favor, escribe un correo antes de enviar.")
+            remitente = st.text_input("Tu Email:", placeholder="ejemplo@gmail.com")
+            # type="password" es crucial: oculta tu contraseña con puntitos/asteriscos
+            password = st.text_input("App Pass:", type="password", placeholder="Contraseña de aplicación")
+            destino = st.text_input("Destino:", placeholder="destino@correo.com")
+            
+            if st.button("Enviar Ahora", type="primary", use_container_width=True):
+                if remitente == "" or password == "" or destino == "":
+                    st.error("⚠️ Faltan datos. Llena todos los campos.")
                 else:
-                    st.success(f"¡El reporte ha sido enviado exitosamente a {correo_destino}!")
-                    st.balloons()
+                    try:
+                        # Importamos las herramientas de red y correo
+                        import smtplib
+                        from email.mime.multipart import MIMEMultipart
+                        from email.mime.base import MIMEBase
+                        from email.mime.text import MIMEText
+                        from email import encoders
+                        
+                        # 1. Estructuramos el correo
+                        msg = MIMEMultipart()
+                        msg['From'] = remitente
+                        msg['To'] = destino
+                        msg['Subject'] = "Reporte Ejecutivo - Simulador Bancario"
+                        
+                        cuerpo = "Hola. Adjunto encontrarás el reporte generado automáticamente por el Simulador Bancario."
+                        msg.attach(MIMEText(cuerpo, 'plain'))
+                        
+                        # 2. Adjuntamos el PDF que se acaba de generar en la nube
+                        nombre_archivo = "Reporte_Simulacion.pdf"
+                        with open(nombre_archivo, "rb") as adjunto:
+                            parte = MIMEBase("application", "octet-stream")
+                            parte.set_payload(adjunto.read())
+                        
+                        encoders.encode_base64(parte)
+                        parte.add_header("Content-Disposition", f"attachment; filename= {nombre_archivo}")
+                        msg.attach(parte)
+                        
+                        # 3. Nos conectamos al servidor de Gmail y enviamos
+                        servidor = smtplib.SMTP('smtp.gmail.com', 587)
+                        servidor.starttls()
+                        servidor.login(remitente, password)
+                        texto_final = msg.as_string()
+                        servidor.sendmail(remitente, destino, texto_final)
+                        servidor.quit()
+                        
+                        st.success(f"¡El PDF ha sido enviado con éxito a {destino}!")
+                        st.balloons()
+                        
+                    except smtplib.SMTPAuthenticationError:
+                        st.error("❌ Error de Autenticación: Verifica que tu correo sea correcto y que estés usando una 'Contraseña de Aplicación' de Gmail de 16 letras sin espacios, no tu contraseña normal.")
+                    except Exception as e:
+                        st.error(f"❌ Ocurrió un error inesperado: {e}")
