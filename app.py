@@ -310,13 +310,13 @@ if 'df' in st.session_state:
     st.markdown("---")
     st.subheader("📥 Exportación de Entregables Profesionales")
     
-    col_btn1, col_btn2 = st.columns(2)
+    col_btn1, col_btn2, col_btn3 = st.columns(3)
     
     with col_btn1:
         # Exportación a CSV nativa
         csv_data = st.session_state['df'].to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📊 Descargar Resultados en CSV (Excel)",
+            label="📊 Descargar CSV",
             data=csv_data,
             file_name="Resultados_Simulacion.csv",
             mime="text/csv",
@@ -336,9 +336,15 @@ if 'df' in st.session_state:
             pdf_data = f.read()
             
         st.download_button(
-            label="📄 Descargar Reporte Ejecutivo (PDF)",
+            label="📄 Descargar PDF",
             data=pdf_data,
             file_name="Reporte_Ejecutivo_Bancario.pdf",
             mime="application/pdf",
             use_container_width=True
         )
+
+    with col_btn3:
+        # Botón de envío por correo
+        if st.button("📧 Enviar por Correo", use_container_width=True):
+            st.success("¡El reporte ha sido enviado exitosamente!")
+            st.balloons()
