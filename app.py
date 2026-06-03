@@ -301,15 +301,13 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
                 else:
                     labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
                     
-        # Construcción visual
+        # Construcción visual en el cuadrante existente
         colores_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
-        fig2, ax2 = plt.subplots(figsize=(8, 6))
         
-        # El .values asegura que Matplotlib no colapse al dibujar
+        # ATENCIÓN: Asegúrate de que la variable coincida con tu cuadrante vacío. 
+        # Si tu código usa axs[0, 1] para la derecha, cámbialo aquí. Si usa ax2, déjalo así.
         ax2.pie(conteo_ocio.values, labels=labels_ocio, autopct='%1.1f%%', startangle=140, colors=colores_ocio, wedgeprops={'edgecolor': 'gray'})
         ax2.set_title("Distribución de Tiempo de Ocio (Por Rangos)", fontweight="bold")
-        
-        st.pyplot(fig2)
         
     except Exception as e:
         st.error(f"⚠️ Hubo un error interno al dibujar el pastel: {e}")
