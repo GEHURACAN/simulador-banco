@@ -272,29 +272,40 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
 
     # Pastel 2: Ocio por Rangos
     ocio_series = pd.Series(ocio_list)
+    
+    # Caso 1: Escenario donde todos los cajeros tienen el mismo ocio (evita error de bins)
     if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
         val_unico = ocio_series.max()
+        # Aplicamos regla de conversión inteligente
         if val_unico > 59:
             etiqueta = f"{(val_unico/60):.2f} HRS"
         else:
             etiqueta = f"{val_unico:.2f} min"
         conteo_ocio = pd.Series({etiqueta: len(ocio_series)})
         labels_ocio = conteo_ocio.index
+        
+    # Caso 2: Escenario normal (múltiples rangos) - ESTE ES EL QUE MUESTRAS EN TU IMAGEN
     else:
+        # 1. Creamos 4 rangos matemáticos
         bins = pd.cut(ocio_series, bins=4)
+        # 2. Contamos cuántos cajeros caen en cada rango
         conteo_ocio = bins.value_counts().sort_index()
+        # 3. Quitamos los rangos vacíos para no saturar la gráfica
         conteo_ocio = conteo_ocio[conteo_ocio > 0]
         
+        # 4. Construimos las etiquetas inteligentes una por una
         labels_ocio = []
         for b in conteo_ocio.index:
-            limite_inf = max(0, b.left)
+            limite_inf = max(0, b.left) # El límite inferior no puede ser negativo
             limite_sup = b.right
-            # Lógica inteligente para las etiquetas del pastel
+            
+            # --- LÓGICA DE CONVERSIÓN UNIFICADA SOLICITADA ---
+            # Si el límite superior del rango supera 59, convertimos TODO el rango a HRS
             if limite_sup > 59:
-                labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} hrs")
+                labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} HRS")
             else:
                 labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
-
+                
     # Gantt e Histograma condicionales (Solo si cajas <= 6)
     if cajeros <= 6:
         # Gantt
