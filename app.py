@@ -223,7 +223,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.session_state['pct_tiempo_sistema'] = pct_tiempo_sistema
     st.session_state['conteo'] = conteo_cajeros
 
-    # --- DISEÑO EN PANTALLA ---
+   # --- DISEÑO EN PANTALLA ---
     # Tarjetas informativas de alto nivel (KPI Metrics)
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
     with col_kpi1:
@@ -231,13 +231,20 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     with col_kpi2:
         st.metric(label="Promedio Tiempo en Sistema", value=f"{pct_tiempo_sistema:.2f}%")
     with col_kpi3:
-        # Lógica inteligente para cambiar formato a Horas o Minutos
         if prom_ocio > 59:
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{(prom_ocio / 60):.2f} HRS")
         else:
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{prom_ocio:.4f} min")
             
     st.subheader("📋 Registro Operativo Detallado")
+    st.dataframe(df.round(3), use_container_width=True)
+    
+    # Sección del análisis descriptivo automático
+    st.subheader("📝 Evaluación del Sistema y Diagnóstico")
+    st.info(analisis_texto)
+
+    # --- CONSTRUCCIÓN DEL DASHBOARD GRÁFICO CONDICIONAL ---
+    st.subheader("📊 Visualización de Datos")
     
     # Sección del análisis descriptivo automático
     st.subheader("📝 Evaluación del Sistema y Diagnóstico")
