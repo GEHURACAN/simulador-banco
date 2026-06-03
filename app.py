@@ -246,13 +246,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     # --- CONSTRUCCIÓN DEL DASHBOARD GRÁFICO CONDICIONAL ---
     st.subheader("📊 Visualización de Datos")
     
-    # Sección del análisis descriptivo automático
-    st.subheader("📝 Evaluación del Sistema y Diagnóstico")
-    st.info(analisis_texto)
-
-    # --- CONSTRUCCIÓN DEL DASHBOARD GRÁFICO CONDICIONAL ---
-    st.subheader("📊 Visualización de Datos")
-    
     if cajeros <= 6:
         fig, axs = plt.subplots(2, 2, figsize=(16, 12))
         fig.patch.set_facecolor('white')
