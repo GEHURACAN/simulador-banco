@@ -273,17 +273,27 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     # Pastel 2: Ocio por Rangos
     ocio_series = pd.Series(ocio_list)
     if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
-        conteo_ocio = pd.Series({f"{ocio_series.max():.2f} min": len(ocio_series)})
+        val_unico = ocio_series.max()
+        if val_unico > 59:
+            etiqueta = f"{(val_unico/60):.2f} HRS"
+        else:
+            etiqueta = f"{val_unico:.2f} min"
+        conteo_ocio = pd.Series({etiqueta: len(ocio_series)})
         labels_ocio = conteo_ocio.index
     else:
         bins = pd.cut(ocio_series, bins=4)
         conteo_ocio = bins.value_counts().sort_index()
         conteo_ocio = conteo_ocio[conteo_ocio > 0]
-        labels_ocio = [f"De {max(0, b.left):.2f} a {b.right:.2f} min" for b in conteo_ocio.index]
-
-    colores_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
-    ax2.pie(conteo_ocio, labels=labels_ocio, autopct='%1.1f%%', startangle=140, colors=colores_ocio, wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
-    ax2.set_title("Distribución de Tiempo de Ocio (Por Rangos)", fontweight='bold')
+        
+        labels_ocio = []
+        for b in conteo_ocio.index:
+            limite_inf = max(0, b.left)
+            limite_sup = b.right
+            # Lógica inteligente para las etiquetas del pastel
+            if limite_sup > 59:
+                labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} hrs")
+            else:
+                labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
 
     # Gantt e Histograma condicionales (Solo si cajas <= 6)
     if cajeros <= 6:
