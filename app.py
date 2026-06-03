@@ -295,9 +295,9 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
                 limite_inf = max(0, b.left)
                 limite_sup = b.right
                 
-                # Conversión inteligente a HRS
+                # Conversión inteligente a hrs
                 if limite_sup > 59:
-                    labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} HRS")
+                    labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} hrs")
                 else:
                     labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
                     
