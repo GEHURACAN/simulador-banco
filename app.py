@@ -271,36 +271,48 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     ax1.set_title("Distribución de Tiempo de Servicio", fontweight='bold')
 
     # Pastel 2: Ocio por Rangos
-    ocio_series = pd.Series(ocio_list)
-    
-    if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
-        val_unico = ocio_series.max()
-        if val_unico > 59:
-            etiqueta = f"{(val_unico/60):.2f} HRS"
-        else:
-            etiqueta = f"{val_unico:.2f} min"
-        conteo_ocio = pd.Series({etiqueta: len(ocio_series)})
-        labels_ocio = conteo_ocio.index
-    else:
-        bins = pd.cut(ocio_series, bins=4)
-        conteo_ocio = bins.value_counts().sort_index()
-        conteo_ocio = conteo_ocio[conteo_ocio > 0]
+    try:
+        ocio_series = pd.Series(ocio_list)
         
-        labels_ocio = []
-        for b in conteo_ocio.index:
-            limite_inf = max(0, b.left)
-            limite_sup = b.right
-            if limite_sup > 59:
-                labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} HRS")
+        # Caso 1: Todos los tiempos son idénticos o es cero
+        if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
+            val_unico = ocio_series.max()
+            if val_unico > 59:
+                etiqueta = f"{(val_unico/60):.2f} HRS"
             else:
-                labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
+                etiqueta = f"{val_unico:.2f} min"
+            conteo_ocio = pd.Series({etiqueta: len(ocio_series)})
+            labels_ocio = conteo_ocio.index
+            
+        # Caso 2: Múltiples rangos (Cálculo matemático)
+        else:
+            bins = pd.cut(ocio_series, bins=4)
+            conteo_ocio = bins.value_counts().sort_index()
+            conteo_ocio = conteo_ocio[conteo_ocio > 0]
+            
+            labels_ocio = []
+            for b in conteo_ocio.index:
+                limite_inf = max(0, b.left)
+                limite_sup = b.right
                 
-    # --- AQUÍ ESTÁ LA CLAVE: Forzamos a la gráfica a usar "labels_ocio" ---
-    colores_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
-    
-    fig2, ax2 = plt.subplots(figsize=(8, 6))
-    ax2.pie(conteo_ocio, labels=labels_ocio, autopct='%1.1f%%', startangle=140, colors=colores_ocio, wedgeprops={'edgecolor': 'gray'})
-    ax2.set_title("Distribución de Tiempo de Ocio (Por Rangos)", fontweight="bold")
+                # Conversión inteligente a HRS
+                if limite_sup > 59:
+                    labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} HRS")
+                else:
+                    labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
+                    
+        # Construcción visual
+        colores_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
+        fig2, ax2 = plt.subplots(figsize=(8, 6))
+        
+        # El .values asegura que Matplotlib no colapse al dibujar
+        ax2.pie(conteo_ocio.values, labels=labels_ocio, autopct='%1.1f%%', startangle=140, colors=colores_ocio, wedgeprops={'edgecolor': 'gray'})
+        ax2.set_title("Distribución de Tiempo de Ocio (Por Rangos)", fontweight="bold")
+        
+        st.pyplot(fig2)
+        
+    except Exception as e:
+        st.error(f"⚠️ Hubo un error interno al dibujar el pastel: {e}")
                 
     # Gantt e Histograma condicionales (Solo si cajas <= 6)
     if cajeros <= 6:
