@@ -194,7 +194,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
 # 4. INTERFAZ WEB RESPONSIVA (STREAMLIT)
 # ==========================================
 
-st.title("🏦 Sistema de Simulación Bancaria Multicajero")
+st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
 # Panel lateral elástico para controles de entrada
