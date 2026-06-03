@@ -232,7 +232,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         st.metric(label="Promedio Tiempo en Sistema", value=f"{pct_tiempo_sistema:.2f}%")
     with col_kpi3:
         if prom_ocio > 59:
-            st.metric(label="Ocio Promedio en Ventanilla", value=f"{(prom_ocio / 60):.2f} HRS")
+            st.metric(label="Ocio Promedio en Ventanilla", value=f"{(prom_ocio / 60):.2f} hrs")
         else:
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{prom_ocio:.4f} min")
             
