@@ -26,8 +26,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ... (DE AQUÍ HACIA ABAJO DEJA TODO TU CÓDIGO EXACTAMENTE IGUAL) ...
-
 # ==========================================
 # 1. LÓGICA DE SIMULACIÓN
 # ==========================================
@@ -223,7 +221,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.session_state['pct_tiempo_sistema'] = pct_tiempo_sistema
     st.session_state['conteo'] = conteo_cajeros
 
-   # --- DISEÑO EN PANTALLA ---
+    # --- DISEÑO EN PANTALLA ---
     # Tarjetas informativas de alto nivel (KPI Metrics)
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
     with col_kpi1:
@@ -331,6 +329,16 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         ax4.legend()
         ax4.grid(axis='y', linestyle='--', alpha=0.5)
 
+        # --- LÓGICA INTELIGENTE DE DISEÑO ---
+        if clientes > 10:
+            # 1. Eliminamos el cuadrante del Gantt para evitar amontonamiento visual
+            axs[1, 0].remove()
+            
+            # 2. Tomamos el cuadrante del Histograma y le decimos que se expanda
+            gs = axs[1, 1].get_gridspec()
+            axs[1, 1].set_subplotspec(gs[1, :])
+
+    # Guardamos la foto para el PDF y la dibujamos en la página (UNA SOLA VEZ)
     plt.tight_layout()
     plt.savefig("graficas_simulacion.jpg", bbox_inches='tight', dpi=120, facecolor='white', transparent=False)
     st.pyplot(fig) # Renderiza la gráfica de forma elástica en la web
