@@ -351,12 +351,37 @@ if 'df' in st.session_state:
     col_btn1, col_btn2, col_btn3 = st.columns(3)
     
     with col_btn1:
-        # Exportación a CSV nativa
-        csv_data = st.session_state['df'].to_csv(index=False).encode('utf-8')
+        with col_btn1:
+        # 1. Copiamos el dataframe para no afectar la pantalla
+        df_export = st.session_state['df'].copy()
+        
+        # 2. Agregamos el KPI faltante: Tiempo de Espera en Fila
+        df_export.insert(5, 'T.Espera', df_export['H.Inicio'] - df_export['H.Llegada'])
+        
+        # 3. Redondeamos todos los tiempos a 2 decimales para la limpieza visual
+        cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera', 'T.Servicio', 'H.Salida', 'T.Sistema']
+        df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
+        
+        # 4. Renombramos columnas a un estándar de negocios
+        df_export = df_export.rename(columns={
+            'Cliente': 'ID_Cliente',
+            'Cajero': 'Num_Cajero_Asignado',
+            'T.Entre': 'Tiempo_Entre_Llegadas_min',
+            'H.Llegada': 'Cronometro_Llegada',
+            'H.Inicio': 'Cronometro_Atencion',
+            'T.Espera': 'Minutos_Esperando_Fila',
+            'Operación': 'Tipo_Operacion',
+            'T.Servicio': 'Tiempo_Transaccion_min',
+            'H.Salida': 'Cronometro_Salida',
+            'T.Sistema': 'Total_Tiempo_Sucursal_min'
+        })
+
+        # Exportación a CSV nativa mejorada
+        csv_data = df_export.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📊 Descargar CSV",
             data=csv_data,
-            file_name="Resultados_Simulacion.csv",
+            file_name="Resultados_Bancarios_Auditados.csv",
             mime="text/csv",
             use_container_width=True
         )
