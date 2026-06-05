@@ -351,18 +351,32 @@ if 'df' in st.session_state:
     col_btn1, col_btn2, col_btn3 = st.columns(3)
     
     with col_btn1:
-        with col_btn1:
         # 1. Copiamos el dataframe para no afectar la pantalla
         df_export = st.session_state['df'].copy()
         
         # 2. Agregamos el KPI faltante: Tiempo de Espera en Fila
         df_export.insert(5, 'T.Espera', df_export['H.Inicio'] - df_export['H.Llegada'])
         
-        # 3. Redondeamos todos los tiempos a 2 decimales para la limpieza visual
+        # 3. MÉTRICAS AVANZADAS PREMIUM
+        # Etiqueta cualitativa para filtros de Excel
+        df_export.insert(6, 'Sufrio_Fila', np.where(df_export['T.Espera'] > 0, 'Sí', 'No'))
+        # Eficiencia de atención (%)
+        df_export['Eficiencia_Atencion_%'] = ((df_export['T.Servicio'] / (df_export['T.Espera'] + df_export['T.Servicio'])) * 100).round(2)
+        
+        # Simulación de Reloj Real (Asumiendo que el banco abre 09:00 AM)
+        hora_apertura = pd.to_datetime('2026-06-05 09:00:00')
+        df_export['Hora_Llegada_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Llegada'], unit='m')
+        df_export['Hora_Salida_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Salida'], unit='m')
+        
+        # Formateamos el reloj a HH:MM:SS
+        df_export['Hora_Llegada_Reloj'] = df_export['Hora_Llegada_Reloj'].dt.strftime('%H:%M:%S')
+        df_export['Hora_Salida_Reloj'] = df_export['Hora_Salida_Reloj'].dt.strftime('%H:%M:%S')
+
+        # 4. Redondeamos todos los tiempos a 2 decimales para la limpieza visual
         cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera', 'T.Servicio', 'H.Salida', 'T.Sistema']
         df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
         
-        # 4. Renombramos columnas a un estándar de negocios
+        # 5. Renombramos columnas y ordenamos para el reporte final
         df_export = df_export.rename(columns={
             'Cliente': 'ID_Cliente',
             'Cajero': 'Num_Cajero_Asignado',
@@ -375,6 +389,14 @@ if 'df' in st.session_state:
             'H.Salida': 'Cronometro_Salida',
             'T.Sistema': 'Total_Tiempo_Sucursal_min'
         })
+        
+        # Reordenar las columnas para que el reloj quede al principio
+        columnas_finales = [
+            'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado', 
+            'Sufrio_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operacion', 'Tiempo_Transaccion_min', 
+            'Eficiencia_Atencion_%', 'Total_Tiempo_Sucursal_min'
+        ]
+        df_export = df_export[columnas_finales]
 
         # Exportación a CSV nativa mejorada
         csv_data = df_export.to_csv(index=False).encode('utf-8')
