@@ -55,7 +55,7 @@ def simular_banco_multicajero(num_clientes, num_cajeros, modo_demanda):
         elif ri_operacion < 0.70:
             operacion = "Transferencia"
         else:
-            operacion = "Depósito" # <--- ¡Acento corregido desde la raíz!
+            operacion = "Depósito"
 
         ri_servicio = np.random.rand()
         if operacion in ["Retiro", "Transferencia"]:
@@ -187,18 +187,18 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
         pdf.cell(0, 8, txt="Matriz de Graficas Operativas (Dashboard)", ln=True)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(3)
-        
+
         y_dashboard = pdf.get_y()
         pdf.image("graficas_simulacion.jpg", x=10, y=y_dashboard, w=190)
-        pdf.set_y(y_dashboard + 115) 
-        
+        pdf.set_y(y_dashboard + 115)
+
     if os.path.exists("grafica_fila_pdf.jpg"):
         pdf.set_font("Arial", 'B', 12)
         pdf.set_text_color(*azul_titulos)
         pdf.cell(0, 8, txt="Distribución Avanzada de Tiempos de Espera en Fila", ln=True)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(3)
-        
+
         pdf.image("grafica_fila_pdf.jpg", x=45, y=pdf.get_y(), w=120)
 
     pdf.output("Reporte_Simulacion.pdf")
@@ -210,38 +210,32 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
-# Panel lateral elástico para controles de entrada
 st.sidebar.header("⚙️ Parámetros de Control")
 clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
 cajeros = st.sidebar.number_input("Número de cajeros activos:", min_value=1, max_value=500, value=6)
 escenario = st.sidebar.selectbox("Escenario de Demanda:", [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)])
 
-# Botón principal de ejecución web
 if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
-    
-    # Ejecución del motor matemático
+
     df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1])
-    
-    # --- INTEGRAMOS LAS COLUMNAS DE FILA A LA TABLA GENERAL (VISIBLE EN WEB) ---
+
+    # --- COLUMNAS DE FILA (CAMBIO: Sufrió_Fila → Esperó_Fila) ---
     espera_calculada = df['H.Inicio'] - df['H.Llegada']
-    df.insert(5, 'Sufrió_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
+    df.insert(5, 'Esperó_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
-    
-    # Cálculos globales
+
     t_final = df['H.Salida'].max()
     pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100
     prom_ocio = sum(ocio_list) / cajeros
     conteo_cajeros = df['Cajero'].value_counts().sort_index()
     analisis_texto = generar_analisis_dinamico(df, ocio_list, cajeros, clientes)
-    
-    # Guardar en variables de sesión de Streamlit para persistencia
+
     st.session_state['df'] = df
     st.session_state['analisis'] = analisis_texto
     st.session_state['prom_ocio'] = prom_ocio
     st.session_state['pct_tiempo_sistema'] = pct_tiempo_sistema
     st.session_state['conteo'] = conteo_cajeros
 
-    # --- DISEÑO EN PANTALLA ---
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
     with col_kpi1:
         st.metric(label="Clientes Atendidos", value=f"{clientes}")
@@ -252,23 +246,21 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{(prom_ocio / 60):.2f} hrs")
         else:
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{prom_ocio:.4f} min")
-            
+
     st.subheader("📋 Registro Operativo Detallado")
     st.dataframe(df.round(3), use_container_width=True)
-    
+
     st.subheader("📝 Evaluación del Sistema y Diagnóstico")
     st.info(analisis_texto)
 
-    # --- CONSTRUCCIÓN DEL DASHBOARD GRÁFICO CONDICIONAL ---
     st.subheader("📊 Visualización de Datos")
-    
+
     if cajeros <= 6:
         fig, axs = plt.subplots(2, 2, figsize=(16, 12))
         fig.patch.set_facecolor('white')
         fig.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold', y=0.98)
         fig.text(0.5, 0.51, "(MONITOREO EN TIEMPO REAL)", ha='center', va='center', fontsize=15, fontweight='bold', color='darkblue')
         plt.subplots_adjust(hspace=0.3)
-        
         ax1, ax2, ax3, ax4 = axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]
     else:
         fig, axs = plt.subplots(1, 2, figsize=(16, 6))
@@ -278,7 +270,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
 
     mapa_colores = {"Depósito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
 
-    # Pastel 1: Servicio
     servicios_agrupados = df.groupby("Operación")["T.Servicio"].sum()
     mapa_etiquetas_serv = {"Depósito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
     etiquetas_serv = [mapa_etiquetas_serv.get(op, op) for op in servicios_agrupados.index]
@@ -286,10 +277,9 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     ax1.pie(servicios_agrupados, labels=etiquetas_serv, autopct='%1.1f%%', startangle=140, colors=colores_serv, wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
     ax1.set_title("Distribución de Tiempo de Servicio", fontweight='bold')
 
-    # Pastel 2: Ocio por Rangos
     try:
         ocio_series = pd.Series(ocio_list)
-        
+
         if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
             val_unico = ocio_series.max()
             if val_unico > 59:
@@ -302,7 +292,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             bins = pd.cut(ocio_series, bins=4)
             conteo_ocio = bins.value_counts().sort_index()
             conteo_ocio = conteo_ocio[conteo_ocio > 0]
-            
+
             labels_ocio = []
             for b in conteo_ocio.index:
                 limite_inf = max(0, b.left)
@@ -311,15 +301,14 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
                     labels_ocio.append(f"De {(limite_inf/60):.2f} a {(limite_sup/60):.2f} hrs")
                 else:
                     labels_ocio.append(f"De {limite_inf:.2f} a {limite_sup:.2f} min")
-                    
+
         colores_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
         ax2.pie(conteo_ocio.values, labels=labels_ocio, autopct='%1.1f%%', startangle=140, colors=colores_ocio, wedgeprops={'edgecolor': 'gray'})
         ax2.set_title("Distribución de Tiempo de Ocio (Por Rangos)", fontweight="bold")
-        
+
     except Exception as e:
         st.error(f"⚠️ Hubo un error interno al dibujar el pastel: {e}")
-                
-    # Gantt e Histograma condicionales (Solo si cajas <= 6)
+
     if cajeros <= 6:
         ax3.set_title("Diagrama de Gantt - Monitoreo de Operaciones", fontweight='bold')
         for idx, row in df.iterrows():
@@ -341,12 +330,10 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             gs = axs[1, 1].get_gridspec()
             axs[1, 1].set_subplotspec(gs[1, :])
 
-    # Guardamos la foto para el PDF y la dibujamos en la página web
     plt.tight_layout()
     plt.savefig("graficas_simulacion.jpg", bbox_inches='tight', dpi=120, facecolor='white', transparent=False)
     st.pyplot(fig)
 
-    # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) REDUCIDA ---
     fig_pdf, ax_pdf = plt.subplots(figsize=(6, 3))
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
     ax_pdf.set_title("Distribución de Tiempos de Espera en Fila", fontweight='bold', fontsize=10)
@@ -364,23 +351,23 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
 if 'df' in st.session_state:
     st.markdown("---")
     st.subheader("📥 Exportación de Entregables Profesionales")
-    
+
     col_btn1, col_btn2, col_btn3 = st.columns(3)
-    
+
     with col_btn1:
         df_export = st.session_state['df'].copy()
         df_export['Eficiencia_Atención_%'] = ((df_export['T.Servicio'] / (df_export['T.Espera'] + df_export['T.Servicio'])) * 100).round(2)
-        
+
         hora_apertura = pd.to_datetime('2026-06-05 09:00:00')
         df_export['Hora_Llegada_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Llegada'], unit='m')
         df_export['Hora_Salida_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Salida'], unit='m')
-        
+
         df_export['Hora_Llegada_Reloj'] = df_export['Hora_Llegada_Reloj'].dt.strftime('%H:%M:%S')
         df_export['Hora_Salida_Reloj'] = df_export['Hora_Salida_Reloj'].dt.strftime('%H:%M:%S')
 
         cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera', 'T.Servicio', 'H.Salida', 'T.Sistema']
         df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
-        
+
         df_export = df_export.rename(columns={
             'Cliente': 'ID_Cliente',
             'Cajero': 'Num_Cajero_Asignado',
@@ -393,10 +380,11 @@ if 'df' in st.session_state:
             'H.Salida': 'Cronómetro_Salida',
             'T.Sistema': 'Total_Tiempo_Sucursal_min'
         })
-        
+
+        # CAMBIO: Sufrió_Fila → Esperó_Fila en columnas finales del CSV
         columnas_finales = [
-            'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado', 
-            'Sufrió_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min', 
+            'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado',
+            'Esperó_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min',
             'Eficiencia_Atención_%', 'Total_Tiempo_Sucursal_min'
         ]
         df_export = df_export[columnas_finales]
@@ -409,18 +397,18 @@ if 'df' in st.session_state:
             mime="text/csv",
             use_container_width=True
         )
-        
+
     with col_btn2:
         crear_pdf(
-            st.session_state['df'], 
-            st.session_state['analisis'], 
-            st.session_state['prom_ocio'], 
-            st.session_state['pct_tiempo_sistema'], 
+            st.session_state['df'],
+            st.session_state['analisis'],
+            st.session_state['prom_ocio'],
+            st.session_state['pct_tiempo_sistema'],
             st.session_state['conteo']
         )
         with open("Reporte_Simulacion.pdf", "rb") as f:
             pdf_data = f.read()
-            
+
         st.download_button(
             label="📄 Descargar PDF",
             data=pdf_data,
@@ -432,11 +420,11 @@ if 'df' in st.session_state:
     with col_btn3:
         with st.popover("📧 Enviar por Correo", use_container_width=True):
             st.markdown("**Datos de Envío (Usa Gmail con Contraseña de Aplicación):**")
-            
+
             remitente = st.text_input("Tu Email:", placeholder="ejemplo@gmail.com")
             password = st.text_input("App Pass:", type="password", placeholder="Contraseña de aplicación")
             destino = st.text_input("Destino:", placeholder="destino@correo.com")
-            
+
             if st.button("Enviar Ahora", type="primary", use_container_width=True):
                 if remitente == "" or password == "" or destino == "":
                     st.error("⚠️ Faltan datos. Llena todos los campos.")
@@ -447,34 +435,34 @@ if 'df' in st.session_state:
                         from email.mime.base import MIMEBase
                         from email.mime.text import MIMEText
                         from email import encoders
-                        
+
                         msg = MIMEMultipart()
                         msg['From'] = remitente
                         msg['To'] = destino
                         msg['Subject'] = "Reporte Ejecutivo - Simulador Bancario"
-                        
+
                         cuerpo = "Hola. Adjunto encontrarás el reporte generado automáticamente por el Simulador Bancario."
                         msg.attach(MIMEText(cuerpo, 'plain'))
-                        
+
                         nombre_archivo = "Reporte_Simulacion.pdf"
                         with open(nombre_archivo, "rb") as adjunto:
                             parte = MIMEBase("application", "octet-stream")
                             parte.set_payload(adjunto.read())
-                        
+
                         encoders.encode_base64(parte)
                         parte.add_header("Content-Disposition", f"attachment; filename= {nombre_archivo}")
                         msg.attach(parte)
-                        
+
                         servidor = smtplib.SMTP('smtp.gmail.com', 587)
                         servidor.starttls()
                         servidor.login(remitente, password)
                         texto_final = msg.as_string()
                         servidor.sendmail(remitente, destino, texto_final)
                         servidor.quit()
-                        
+
                         st.success(f"¡El PDF ha sido enviado con éxito a {destino}!")
                         st.balloons()
-                        
+
                     except smtplib.SMTPAuthenticationError:
                         st.error("❌ Error de Autenticación: Verifica tus datos.")
                     except Exception as e:
