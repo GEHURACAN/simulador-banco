@@ -178,28 +178,32 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    # --- AJUSTE DE MAQUETADO: SEPARACIÓN COMPLETA POR HOJAS ---
-    # Hoja 2: Dashboard Principal Completo
+    # --- INICIO DEL MAQUETADO: DOS GRÁFICAS EN UNA SOLA HOJA ---
     if os.path.exists("graficas_simulacion.jpg"):
-        pdf.add_page()
-        pdf.set_y(25)
+        pdf.add_page() # Creamos la segunda hoja
+        pdf.set_y(20)
         pdf.set_font("Arial", 'B', 12)
         pdf.set_text_color(*azul_titulos)
         pdf.cell(0, 8, txt="Matriz de Graficas Operativas (Dashboard)", ln=True)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(5)
-        pdf.image("graficas_simulacion.jpg", x=10, y=pdf.get_y(), w=190)
+        pdf.ln(3)
         
-    # Hoja 3: Análisis Avanzado de Esperas en Fila
+        y_dashboard = pdf.get_y()
+        # Imprime el Dashboard en pantalla completa (w=190)
+        pdf.image("graficas_simulacion.jpg", x=10, y=y_dashboard, w=190)
+        
+        # Bajamos el cursor dejando el espacio exacto que ocupa el Dashboard
+        pdf.set_y(y_dashboard + 115) 
+        
     if os.path.exists("grafica_fila_pdf.jpg"):
-        pdf.add_page()
-        pdf.set_y(25)
         pdf.set_font("Arial", 'B', 12)
         pdf.set_text_color(*azul_titulos)
         pdf.cell(0, 8, txt="Distribucion Avanzada de Tiempos de Espera en Fila", ln=True)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(15)
-        pdf.image("grafica_fila_pdf.jpg", x=20, y=pdf.get_y(), w=170)
+        pdf.ln(3)
+        
+        # Inyecta la gráfica pequeña (w=120) y la centra en la hoja (x=45)
+        pdf.image("grafica_fila_pdf.jpg", x=45, y=pdf.get_y(), w=120)
 
     pdf.output("Reporte_Simulacion.pdf")
 
@@ -210,7 +214,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
-# Panel lateral elástico para controls de entrada
+# Panel lateral elástico para controles de entrada
 st.sidebar.header("⚙️ Parámetros de Control")
 clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
 cajeros = st.sidebar.number_input("Número de cajeros activos:", min_value=1, max_value=500, value=6)
@@ -346,12 +350,13 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     plt.savefig("graficas_simulacion.jpg", bbox_inches='tight', dpi=120, facecolor='white', transparent=False)
     st.pyplot(fig)
 
-    # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) ---
-    fig_pdf, ax_pdf = plt.subplots(figsize=(7, 4))
+    # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) REDUCIDA ---
+    fig_pdf, ax_pdf = plt.subplots(figsize=(6, 3)) # <--- Modificamos el tamaño para que sea compacta
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
-    ax_pdf.set_title("Distribucion de Tiempos de Espera en Fila", fontweight='bold')
-    ax_pdf.set_xlabel("Tiempo de espera (minutos)")
-    ax_pdf.set_ylabel("Cantidad de Clientes")
+    ax_pdf.set_title("Distribucion de Tiempos de Espera en Fila", fontweight='bold', fontsize=10)
+    ax_pdf.set_xlabel("Tiempo de espera (minutos)", fontsize=8)
+    ax_pdf.set_ylabel("Cantidad de Clientes", fontsize=8)
+    ax_pdf.tick_params(axis='both', which='major', labelsize=8)
     ax_pdf.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=120, facecolor='white')
