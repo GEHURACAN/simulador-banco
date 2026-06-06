@@ -55,7 +55,7 @@ def simular_banco_multicajero(num_clientes, num_cajeros, modo_demanda):
         elif ri_operacion < 0.70:
             operacion = "Transferencia"
         else:
-            operacion = "Depósito" # <--- ¡Acento corregido desde la raíz!
+            operacion = "Depósito"
 
         ri_servicio = np.random.rand()
         if operacion in ["Retiro", "Transferencia"]:
@@ -224,7 +224,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     
     # --- INTEGRAMOS LAS COLUMNAS DE FILA A LA TABLA GENERAL (VISIBLE EN WEB) ---
     espera_calculada = df['H.Inicio'] - df['H.Llegada']
-    df.insert(5, 'Sufrió_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
+    df.insert(5, 'Esperó_Fila', np.where(espera_calculada > 0, 'Sí', 'No')) # <--- CAMBIO REALIZADO AQUÍ
     df.insert(6, 'T.Espera', espera_calculada)
     
     # Cálculos globales
@@ -396,7 +396,7 @@ if 'df' in st.session_state:
         
         columnas_finales = [
             'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado', 
-            'Sufrió_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min', 
+            'Esperó_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min', # <--- CAMBIO REALIZADO AQUÍ
             'Eficiencia_Atención_%', 'Total_Tiempo_Sucursal_min'
         ]
         df_export = df_export[columnas_finales]
