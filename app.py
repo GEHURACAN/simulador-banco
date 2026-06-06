@@ -55,7 +55,7 @@ def simular_banco_multicajero(num_clientes, num_cajeros, modo_demanda):
         elif ri_operacion < 0.70:
             operacion = "Transferencia"
         else:
-            operacion = "Deposito"
+            operacion = "Depósito" # <--- ¡Acento corregido desde la raíz!
 
         ri_servicio = np.random.rand()
         if operacion in ["Retiro", "Transferencia"]:
@@ -88,7 +88,7 @@ def generar_analisis_dinamico(df, ocio_list, num_cajeros, num_clientes):
 
     servicios = df.groupby("Operación")["T.Servicio"].sum()
     total_serv = servicios.sum()
-    pct_deposito = (servicios.get("Deposito", 0) / total_serv) * 100 if total_serv > 0 else 0
+    pct_deposito = (servicios.get("Depósito", 0) / total_serv) * 100 if total_serv > 0 else 0
 
     analisis = "ANÁLISIS OPERATIVO Y RECOMENDACIONES:\n\n"
     analisis += "1. Distribución del Trabajo:\n"
@@ -178,28 +178,28 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    # --- AJUSTE DE MAQUETADO: SEPARACIÓN COMPLETA POR HOJAS ---
-    # Hoja 2: Dashboard Principal Completo
+    # --- MAQUETADO: DOS GRÁFICAS EN UNA SOLA HOJA ---
     if os.path.exists("graficas_simulacion.jpg"):
         pdf.add_page()
-        pdf.set_y(25)
+        pdf.set_y(20)
         pdf.set_font("Arial", 'B', 12)
         pdf.set_text_color(*azul_titulos)
         pdf.cell(0, 8, txt="Matriz de Graficas Operativas (Dashboard)", ln=True)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(5)
-        pdf.image("graficas_simulacion.jpg", x=10, y=pdf.get_y(), w=190)
+        pdf.ln(3)
         
-    # Hoja 3: Análisis Avanzado de Esperas en Fila
+        y_dashboard = pdf.get_y()
+        pdf.image("graficas_simulacion.jpg", x=10, y=y_dashboard, w=190)
+        pdf.set_y(y_dashboard + 115) 
+        
     if os.path.exists("grafica_fila_pdf.jpg"):
-        pdf.add_page()
-        pdf.set_y(25)
         pdf.set_font("Arial", 'B', 12)
         pdf.set_text_color(*azul_titulos)
-        pdf.cell(0, 8, txt="Distribucion Avanzada de Tiempos de Espera en Fila", ln=True)
+        pdf.cell(0, 8, txt="Distribución Avanzada de Tiempos de Espera en Fila", ln=True)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(15)
-        pdf.image("grafica_fila_pdf.jpg", x=20, y=pdf.get_y(), w=170)
+        pdf.ln(3)
+        
+        pdf.image("grafica_fila_pdf.jpg", x=45, y=pdf.get_y(), w=120)
 
     pdf.output("Reporte_Simulacion.pdf")
 
@@ -210,7 +210,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
-# Panel lateral elástico para controls de entrada
+# Panel lateral elástico para controles de entrada
 st.sidebar.header("⚙️ Parámetros de Control")
 clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
 cajeros = st.sidebar.number_input("Número de cajeros activos:", min_value=1, max_value=500, value=6)
@@ -224,7 +224,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     
     # --- INTEGRAMOS LAS COLUMNAS DE FILA A LA TABLA GENERAL (VISIBLE EN WEB) ---
     espera_calculada = df['H.Inicio'] - df['H.Llegada']
-    df.insert(5, 'Sufrio_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
+    df.insert(5, 'Sufrió_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
     
     # Cálculos globales
@@ -276,11 +276,11 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         fig.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold')
         ax1, ax2 = axs[0], axs[1]
 
-    mapa_colores = {"Deposito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
+    mapa_colores = {"Depósito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
 
     # Pastel 1: Servicio
     servicios_agrupados = df.groupby("Operación")["T.Servicio"].sum()
-    mapa_etiquetas_serv = {"Deposito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
+    mapa_etiquetas_serv = {"Depósito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
     etiquetas_serv = [mapa_etiquetas_serv.get(op, op) for op in servicios_agrupados.index]
     colores_serv = [mapa_colores.get(op, '#000000') for op in servicios_agrupados.index]
     ax1.pie(servicios_agrupados, labels=etiquetas_serv, autopct='%1.1f%%', startangle=140, colors=colores_serv, wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
@@ -346,12 +346,13 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     plt.savefig("graficas_simulacion.jpg", bbox_inches='tight', dpi=120, facecolor='white', transparent=False)
     st.pyplot(fig)
 
-    # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) ---
-    fig_pdf, ax_pdf = plt.subplots(figsize=(7, 4))
+    # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) REDUCIDA ---
+    fig_pdf, ax_pdf = plt.subplots(figsize=(6, 3))
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
-    ax_pdf.set_title("Distribucion de Tiempos de Espera en Fila", fontweight='bold')
-    ax_pdf.set_xlabel("Tiempo de espera (minutos)")
-    ax_pdf.set_ylabel("Cantidad de Clientes")
+    ax_pdf.set_title("Distribución de Tiempos de Espera en Fila", fontweight='bold', fontsize=10)
+    ax_pdf.set_xlabel("Tiempo de espera (minutos)", fontsize=8)
+    ax_pdf.set_ylabel("Cantidad de Clientes", fontsize=8)
+    ax_pdf.tick_params(axis='both', which='major', labelsize=8)
     ax_pdf.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=120, facecolor='white')
@@ -368,8 +369,6 @@ if 'df' in st.session_state:
     
     with col_btn1:
         df_export = st.session_state['df'].copy()
-        
-        # Acento en Atención
         df_export['Eficiencia_Atención_%'] = ((df_export['T.Servicio'] / (df_export['T.Espera'] + df_export['T.Servicio'])) * 100).round(2)
         
         hora_apertura = pd.to_datetime('2026-06-05 09:00:00')
@@ -382,7 +381,6 @@ if 'df' in st.session_state:
         cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera', 'T.Servicio', 'H.Salida', 'T.Sistema']
         df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
         
-        # Acentos agregados en Cronómetro, Operación y Transacción
         df_export = df_export.rename(columns={
             'Cliente': 'ID_Cliente',
             'Cajero': 'Num_Cajero_Asignado',
@@ -402,11 +400,8 @@ if 'df' in st.session_state:
             'Eficiencia_Atención_%', 'Total_Tiempo_Sucursal_min'
         ]
         df_export = df_export[columnas_finales]
-        
-        # Corrección ortográfica interna para que diga "Depósito" en el Excel
-        df_export['Tipo_Operación'] = df_export['Tipo_Operación'].replace('Deposito', 'Depósito')
 
-        csv_data = df_export.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig') # <-- Codificación segura para Excel
+        csv_data = df_export.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
         st.download_button(
             label="📊 Descargar CSV",
             data=csv_data,
