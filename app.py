@@ -255,7 +255,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{prom_ocio:.4f} min")
             
     st.subheader("📋 Registro Operativo Detallado")
-    # Al imprimir el DataFrame web, ahora incluye las columnas en el orden deseado
     st.dataframe(df.round(3), use_container_width=True)
     
     # Sección del análisis descriptivo automático
@@ -269,7 +268,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         fig, axs = plt.subplots(2, 2, figsize=(16, 12))
         fig.patch.set_facecolor('white')
         fig.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold', y=0.98)
-        fig.text(0.5, 0.51, "(MONITOREO EN TIEMPO REAL)", ha='center', va='center', fontsize=15, fontweight='bold', color='darkblue')
+        fig.text(0.5, 0.51, "(MONITOREO EN TIEMEO REAL)", ha='center', va='center', fontsize=15, fontweight='bold', color='darkblue')
         plt.subplots_adjust(hspace=0.3)
         
         ax1, ax2, ax3, ax4 = axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]
@@ -350,16 +349,27 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.pyplot(fig) # Renderiza la gráfica en la web
 
     # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) ---
-    # Esta gráfica se construye, se toma foto y se destruye sin pasar por Streamlit
+    # SISTEMA DE DETECCIÓN INTELIGENTE PARA EVITAR ERRORES VISUALES CUANDO ES 0
     fig_pdf, ax_pdf = plt.subplots(figsize=(7, 4))
-    ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
+    max_espera = df['T.Espera'].max()
+    
+    if max_espera == 0:
+        # Forzamos un bin estético y limpio centrado en 0.0 cuando nadie hace fila
+        ax_pdf.hist(df['T.Espera'], bins=[-0.5, 0.5], color="#2ecc71", edgecolor='black', alpha=0.8, rwidth=0.4)
+        ax_pdf.set_xlim(-0.5, 5.5)
+        ax_pdf.set_xticks(range(0, 6))
+    else:
+        # Se autodistribuye con normalidad cuando sí hay tiempos de espera reales
+        ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
+        ax_pdf.set_xlim(left=-0.1)
+        
     ax_pdf.set_title("Distribución de Tiempos de Espera en Fila", fontweight='bold')
     ax_pdf.set_xlabel("Tiempo de espera (minutos)")
     ax_pdf.set_ylabel("Cantidad de Clientes")
     ax_pdf.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=120, facecolor='white')
-    plt.close(fig_pdf) # <--- La instrucción mágica que la oculta de tu web
+    plt.close(fig_pdf) # Remueve el lienzo de la memoria web de Streamlit
 
 # --- BARRA DE ACCIONES DE EXPORTACIÓN NATIVA ---
 if 'df' in st.session_state:
@@ -369,27 +379,19 @@ if 'df' in st.session_state:
     col_btn1, col_btn2, col_btn3 = st.columns(3)
     
     with col_btn1:
-        # 1. Copiamos el dataframe
         df_export = st.session_state['df'].copy()
-        
-        # 2. MÉTRICAS AVANZADAS PREMIUM (Nota: T.Espera y Sufrio_Fila ya vienen en df_export)
-        # Eficiencia de atención (%)
         df_export['Eficiencia_Atencion_%'] = ((df_export['T.Servicio'] / (df_export['T.Espera'] + df_export['T.Servicio'])) * 100).round(2)
         
-        # Simulación de Reloj Real (Asumiendo que el banco abre 09:00 AM)
         hora_apertura = pd.to_datetime('2026-06-05 09:00:00')
         df_export['Hora_Llegada_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Llegada'], unit='m')
         df_export['Hora_Salida_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Salida'], unit='m')
         
-        # Formateamos el reloj a HH:MM:SS
         df_export['Hora_Llegada_Reloj'] = df_export['Hora_Llegada_Reloj'].dt.strftime('%H:%M:%S')
         df_export['Hora_Salida_Reloj'] = df_export['Hora_Salida_Reloj'].dt.strftime('%H:%M:%S')
 
-        # 3. Redondeamos todos los tiempos a 2 decimales para la limpieza visual
         cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera', 'T.Servicio', 'H.Salida', 'T.Sistema']
         df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
         
-        # 4. Renombramos columnas y ordenamos para el reporte final
         df_export = df_export.rename(columns={
             'Cliente': 'ID_Cliente',
             'Cajero': 'Num_Cajero_Asignado',
@@ -403,7 +405,6 @@ if 'df' in st.session_state:
             'T.Sistema': 'Total_Tiempo_Sucursal_min'
         })
         
-        # Reordenar las columnas para que el reloj quede al principio
         columnas_finales = [
             'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado', 
             'Sufrio_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operacion', 'Tiempo_Transaccion_min', 
@@ -411,7 +412,6 @@ if 'df' in st.session_state:
         ]
         df_export = df_export[columnas_finales]
 
-        # Exportación a CSV nativa
         csv_data = df_export.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📊 Descargar CSV",
@@ -422,7 +422,6 @@ if 'df' in st.session_state:
         )
         
     with col_btn2:
-        # Generación y descarga del PDF corporativo
         crear_pdf(
             st.session_state['df'], 
             st.session_state['analisis'], 
@@ -442,7 +441,6 @@ if 'df' in st.session_state:
         )
 
     with col_btn3:
-        # Menú desplegable con el formulario exacto de tu imagen
         with st.popover("📧 Enviar por Correo", use_container_width=True):
             st.markdown("**Datos de Envío (Usa Gmail con Contraseña de Aplicación):**")
             
