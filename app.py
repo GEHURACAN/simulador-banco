@@ -178,23 +178,28 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    pdf.ln(5)
-
-    # 1. Incrustar las gráficas principales
+    # --- AJUSTE DE MAQUETADO: SEPARACIÓN COMPLETA POR HOJAS ---
+    # Hoja 2: Dashboard Principal Completo
     if os.path.exists("graficas_simulacion.jpg"):
-        if pdf.get_y() > 140:
-            pdf.add_page()
-            pdf.set_y(30)
+        pdf.add_page()
+        pdf.set_y(25)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_text_color(*azul_titulos)
+        pdf.cell(0, 8, txt="Matriz de Graficas Operativas (Dashboard)", ln=True)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(5)
         pdf.image("graficas_simulacion.jpg", x=10, y=pdf.get_y(), w=190)
-        # Bajamos el cursor para hacerle espacio a la nueva gráfica
-        pdf.set_y(pdf.get_y() + 130)
         
-    # 2. Incrustar la segunda gráfica (La exclusiva del PDF para T.Espera)
+    # Hoja 3: Análisis Avanzado de Esperas en Fila
     if os.path.exists("grafica_fila_pdf.jpg"):
-        if pdf.get_y() > 210: # Si ya no cabe en esta hoja, creamos una nueva
-            pdf.add_page()
-            pdf.set_y(30)
-        pdf.image("grafica_fila_pdf.jpg", x=30, y=pdf.get_y(), w=150)
+        pdf.add_page()
+        pdf.set_y(25)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_text_color(*azul_titulos)
+        pdf.cell(0, 8, txt="Distribucion Avanzada de Tiempos de Espera en Fila", ln=True)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(15)
+        pdf.image("grafica_fila_pdf.jpg", x=20, y=pdf.get_y(), w=170)
 
     pdf.output("Reporte_Simulacion.pdf")
 
@@ -205,7 +210,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
-# Panel lateral elástico para controles de entrada
+# Panel lateral elástico para controls de entrada
 st.sidebar.header("⚙️ Parámetros de Control")
 clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
 cajeros = st.sidebar.number_input("Número de cajeros activos:", min_value=1, max_value=500, value=6)
@@ -218,13 +223,8 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1])
     
     # --- INTEGRAMOS LAS COLUMNAS DE FILA A LA TABLA GENERAL (VISIBLE EN WEB) ---
-    # 1. Calculamos el tiempo de espera internamente primero
     espera_calculada = df['H.Inicio'] - df['H.Llegada']
-    
-    # 2. Insertamos PRIMERO 'Sufrio_Fila' en la posición 5
     df.insert(5, 'Sufrio_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
-    
-    # 3. Insertamos DESPUÉS 'T.Espera' en la posición 6
     df.insert(6, 'T.Espera', espera_calculada)
     
     # Cálculos globales
@@ -242,7 +242,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.session_state['conteo'] = conteo_cajeros
 
     # --- DISEÑO EN PANTALLA ---
-    # Tarjetas informativas de alto nivel (KPI Metrics)
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
     with col_kpi1:
         st.metric(label="Clientes Atendidos", value=f"{clientes}")
@@ -257,7 +256,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.subheader("📋 Registro Operativo Detallado")
     st.dataframe(df.round(3), use_container_width=True)
     
-    # Sección del análisis descriptivo automático
     st.subheader("📝 Evaluación del Sistema y Diagnóstico")
     st.info(analisis_texto)
 
@@ -268,7 +266,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         fig, axs = plt.subplots(2, 2, figsize=(16, 12))
         fig.patch.set_facecolor('white')
         fig.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold', y=0.98)
-        fig.text(0.5, 0.51, "(MONITOREO EN TIEMEO REAL)", ha='center', va='center', fontsize=15, fontweight='bold', color='darkblue')
+        fig.text(0.5, 0.51, "(MONITOREO EN TIEMPO REAL)", ha='center', va='center', fontsize=15, fontweight='bold', color='darkblue')
         plt.subplots_adjust(hspace=0.3)
         
         ax1, ax2, ax3, ax4 = axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]
@@ -346,32 +344,22 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     # Guardamos la foto para el PDF y la dibujamos en la página web
     plt.tight_layout()
     plt.savefig("graficas_simulacion.jpg", bbox_inches='tight', dpi=120, facecolor='white', transparent=False)
-    st.pyplot(fig) # Renderiza la gráfica en la web
+    st.pyplot(fig)
 
     # --- GRÁFICA EXCLUSIVA PARA EL PDF (TIEMPO DE ESPERA EN FILA) ---
-    # SISTEMA DE DETECCIÓN INTELIGENTE PARA EVITAR ERRORES VISUALES CUANDO ES 0
     fig_pdf, ax_pdf = plt.subplots(figsize=(7, 4))
-    max_espera = df['T.Espera'].max()
-    
-    if max_espera == 0:
-        # Forzamos un bin estético y limpio centrado en 0.0 cuando nadie hace fila
-        ax_pdf.hist(df['T.Espera'], bins=[-0.5, 0.5], color="#2ecc71", edgecolor='black', alpha=0.8, rwidth=0.4)
-        ax_pdf.set_xlim(-0.5, 5.5)
-        ax_pdf.set_xticks(range(0, 6))
-    else:
-        # Se autodistribuye con normalidad cuando sí hay tiempos de espera reales
-        ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
-        ax_pdf.set_xlim(left=-0.1)
-        
-    ax_pdf.set_title("Distribución de Tiempos de Espera en Fila", fontweight='bold')
+    ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
+    ax_pdf.set_title("Distribucion de Tiempos de Espera en Fila", fontweight='bold')
     ax_pdf.set_xlabel("Tiempo de espera (minutos)")
     ax_pdf.set_ylabel("Cantidad de Clientes")
     ax_pdf.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=120, facecolor='white')
-    plt.close(fig_pdf) # Remueve el lienzo de la memoria web de Streamlit
+    plt.close(fig_pdf)
 
-# --- BARRA DE ACCIONES DE EXPORTACIÓN NATIVA ---
+# ==========================================
+# 5. BOTONES DE EXPORTACIÓN NATIVA
+# ==========================================
 if 'df' in st.session_state:
     st.markdown("---")
     st.subheader("📥 Exportación de Entregables Profesionales")
@@ -487,6 +475,6 @@ if 'df' in st.session_state:
                         st.balloons()
                         
                     except smtplib.SMTPAuthenticationError:
-                        st.error("❌ Error de Autenticación: Verifica que tu correo sea correcto y que estés usando una 'Contraseña de Aplicación'.")
+                        st.error("❌ Error de Autenticación: Verifica tus datos.")
                     except Exception as e:
                         st.error(f"❌ Ocurrió un error inesperado: {e}")
