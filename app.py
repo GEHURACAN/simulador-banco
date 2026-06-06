@@ -218,8 +218,14 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1])
     
     # --- INTEGRAMOS LAS COLUMNAS DE FILA A LA TABLA GENERAL (VISIBLE EN WEB) ---
-    df.insert(5, 'T.Espera', df['H.Inicio'] - df['H.Llegada'])
-    df.insert(6, 'Sufrio_Fila', np.where(df['T.Espera'] > 0, 'Sí', 'No'))
+    # 1. Calculamos el tiempo de espera internamente primero
+    espera_calculada = df['H.Inicio'] - df['H.Llegada']
+    
+    # 2. Insertamos PRIMERO 'Sufrio_Fila' en la posición 5
+    df.insert(5, 'Sufrio_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
+    
+    # 3. Insertamos DESPUÉS 'T.Espera' en la posición 6
+    df.insert(6, 'T.Espera', espera_calculada)
     
     # Cálculos globales
     t_final = df['H.Salida'].max()
@@ -249,7 +255,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             st.metric(label="Ocio Promedio en Ventanilla", value=f"{prom_ocio:.4f} min")
             
     st.subheader("📋 Registro Operativo Detallado")
-    # Al imprimir el DataFrame web, ahora incluye las columnas de "T.Espera" y "Sufrio_Fila"
+    # Al imprimir el DataFrame web, ahora incluye las columnas en el orden deseado
     st.dataframe(df.round(3), use_container_width=True)
     
     # Sección del análisis descriptivo automático
