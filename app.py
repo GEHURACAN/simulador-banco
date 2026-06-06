@@ -224,7 +224,8 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     
     # --- INTEGRAMOS LAS COLUMNAS DE FILA A LA TABLA GENERAL (VISIBLE EN WEB) ---
     espera_calculada = df['H.Inicio'] - df['H.Llegada']
-    df.insert(5, 'Esperó_Fila', np.where(espera_calculada > 0, 'Sí', 'No')) # <--- CAMBIO REALIZADO AQUÍ
+    # Insertamos en el orden: Sufrió_Fila (pos 5) luego T.Espera (pos 6)
+    df.insert(5, 'Esperó_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
     
     # Cálculos globales
@@ -394,9 +395,10 @@ if 'df' in st.session_state:
             'T.Sistema': 'Total_Tiempo_Sucursal_min'
         })
         
+        # Aquí acomodamos el orden: Primero Esperó_Fila, luego Minutos_Esperando_Fila
         columnas_finales = [
             'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado', 
-            'Esperó_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min', # <--- CAMBIO REALIZADO AQUÍ
+            'Esperó_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min', 
             'Eficiencia_Atención_%', 'Total_Tiempo_Sucursal_min'
         ]
         df_export = df_export[columnas_finales]
