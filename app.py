@@ -188,7 +188,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
         pdf.image("graficas_simulacion.jpg", x=10, y=Y_INICIO_DASHBOARD, w=190)
 
         # Calcular posición Y tras el dashboard con margen de separación
-        Y_TRAS_DASHBOARD = Y_INICIO_DASHBOARD + ALTO_DASHBOARD + 8
+        Y_TRAS_DASHBOARD = Y_INICIO_DASHBOARD + ALTO_DASHBOARD + 22
 
         # Espacio disponible hasta el pie de página (página A4 = 297 mm, margen inferior ~15 mm)
         ESPACIO_DISPONIBLE = 297 - 15 - Y_TRAS_DASHBOARD
