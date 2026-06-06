@@ -368,7 +368,9 @@ if 'df' in st.session_state:
     
     with col_btn1:
         df_export = st.session_state['df'].copy()
-        df_export['Eficiencia_Atencion_%'] = ((df_export['T.Servicio'] / (df_export['T.Espera'] + df_export['T.Servicio'])) * 100).round(2)
+        
+        # Acento en Atención
+        df_export['Eficiencia_Atención_%'] = ((df_export['T.Servicio'] / (df_export['T.Espera'] + df_export['T.Servicio'])) * 100).round(2)
         
         hora_apertura = pd.to_datetime('2026-06-05 09:00:00')
         df_export['Hora_Llegada_Reloj'] = hora_apertura + pd.to_timedelta(df_export['H.Llegada'], unit='m')
@@ -380,27 +382,31 @@ if 'df' in st.session_state:
         cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera', 'T.Servicio', 'H.Salida', 'T.Sistema']
         df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
         
+        # Acentos agregados en Cronómetro, Operación y Transacción
         df_export = df_export.rename(columns={
             'Cliente': 'ID_Cliente',
             'Cajero': 'Num_Cajero_Asignado',
             'T.Entre': 'Tiempo_Entre_Llegadas_min',
-            'H.Llegada': 'Cronometro_Llegada',
-            'H.Inicio': 'Cronometro_Atencion',
+            'H.Llegada': 'Cronómetro_Llegada',
+            'H.Inicio': 'Cronómetro_Atención',
             'T.Espera': 'Minutos_Esperando_Fila',
-            'Operación': 'Tipo_Operacion',
-            'T.Servicio': 'Tiempo_Transaccion_min',
-            'H.Salida': 'Cronometro_Salida',
+            'Operación': 'Tipo_Operación',
+            'T.Servicio': 'Tiempo_Transacción_min',
+            'H.Salida': 'Cronómetro_Salida',
             'T.Sistema': 'Total_Tiempo_Sucursal_min'
         })
         
         columnas_finales = [
             'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj', 'Num_Cajero_Asignado', 
-            'Sufrio_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operacion', 'Tiempo_Transaccion_min', 
-            'Eficiencia_Atencion_%', 'Total_Tiempo_Sucursal_min'
+            'Sufrió_Fila', 'Minutos_Esperando_Fila', 'Tipo_Operación', 'Tiempo_Transacción_min', 
+            'Eficiencia_Atención_%', 'Total_Tiempo_Sucursal_min'
         ]
         df_export = df_export[columnas_finales]
+        
+        # Corrección ortográfica interna para que diga "Depósito" en el Excel
+        df_export['Tipo_Operación'] = df_export['Tipo_Operación'].replace('Deposito', 'Depósito')
 
-        csv_data = df_export.to_csv(index=False).encode('utf-8')
+        csv_data = df_export.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig') # <-- Codificación segura para Excel
         st.download_button(
             label="📊 Descargar CSV",
             data=csv_data,
