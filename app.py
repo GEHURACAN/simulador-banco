@@ -184,7 +184,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     ALTO_PASTELES = 59
     if os.path.exists("graficas_pasteles.jpg"):
         pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190)
-    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 3)
+    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 8)
 
     # --- Sección 2: Monitoreo en tiempo real (Gantt + Histograma) ---
     pdf.seccion_titulo("Monitoreo en Tiempo Real")
@@ -192,7 +192,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     ALTO_MONITOREO = 59
     if os.path.exists("graficas_monitoreo.jpg"):
         pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190)
-    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 3)
+    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 8)
 
     # --- Sección 3: Tiempos de espera en fila (misma página, siempre) ---
     pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
