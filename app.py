@@ -183,7 +183,7 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     Y_PASTELES = pdf.get_y()
     ALTO_PASTELES = 59
     if os.path.exists("graficas_pasteles.jpg"):
-        pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190)
+        pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190, h=ALTO_PASTELES)
     pdf.set_y(Y_PASTELES + ALTO_PASTELES + 8)
 
     # --- Sección 2: Monitoreo en tiempo real (Gantt + Histograma) ---
@@ -191,13 +191,15 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     Y_MONITOREO = pdf.get_y()
     ALTO_MONITOREO = 59
     if os.path.exists("graficas_monitoreo.jpg"):
-        pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190)
+        pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190, h=ALTO_MONITOREO)
     pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 8)
 
     # --- Sección 3: Tiempos de espera en fila (misma página, siempre) ---
     pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
+    Y_FILA = pdf.get_y()
+    ALTO_FILA = 45
     if os.path.exists("grafica_fila_pdf.jpg"):
-        pdf.image("grafica_fila_pdf.jpg", x=10, y=pdf.get_y(), w=170)
+        pdf.image("grafica_fila_pdf.jpg", x=10, y=Y_FILA, w=170, h=ALTO_FILA)
 
     pdf.output("Reporte_Simulacion.pdf")
 
