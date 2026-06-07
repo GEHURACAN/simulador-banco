@@ -169,36 +169,32 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    # ── Página 2: Gráficas con títulos uniformes ─────────────────────────────
+    # ── Página 2: Las 3 secciones en una sola hoja ───────────────────────────
+    # Presupuesto A4: 297mm - 28 superior - 15 inferior = 254mm útiles
+    # Sección 1: título(11) + imagen(52) + sep(4) = 67mm
+    # Sección 2: título(11) + imagen(52) + sep(4) = 67mm
+    # Sección 3: título(11) + imagen(50)           = 61mm
+    # Total: 67 + 67 + 61 = 195mm  ✅ cabe en 254mm
     pdf.add_page()
     pdf.set_y(28)
 
     # --- Sección 1: Dashboard (pasteles) ---
     pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
     Y_PASTELES = pdf.get_y()
-    ALTO_PASTELES = 62
+    ALTO_PASTELES = 52
     if os.path.exists("graficas_pasteles.jpg"):
         pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190)
-    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 6)
+    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 4)
 
     # --- Sección 2: Monitoreo en tiempo real (Gantt + Histograma) ---
     pdf.seccion_titulo("Monitoreo en Tiempo Real")
     Y_MONITOREO = pdf.get_y()
-    ALTO_MONITOREO = 62
+    ALTO_MONITOREO = 52
     if os.path.exists("graficas_monitoreo.jpg"):
         pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190)
-    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 6)
+    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 4)
 
-    # --- Sección 3: Tiempos de espera en fila ---
-    # Verificar si cabe en la misma página
-    Y_ACTUAL = pdf.get_y()
-    ALTO_SECCION_FILA = 78
-    ESPACIO_DISPONIBLE = 297 - 15 - Y_ACTUAL
-
-    if ESPACIO_DISPONIBLE < ALTO_SECCION_FILA:
-        pdf.add_page()
-        pdf.set_y(28)
-
+    # --- Sección 3: Tiempos de espera en fila (misma página, siempre) ---
     pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
     if os.path.exists("grafica_fila_pdf.jpg"):
         pdf.image("grafica_fila_pdf.jpg", x=40, y=pdf.get_y(), w=130)
@@ -258,7 +254,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     mapa_colores = {"Depósito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
 
     # ── Figura A: Pasteles ────────────────────────────────────────────────────
-    fig_pasteles, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig_pasteles, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
     fig_pasteles.patch.set_facecolor('white')
     fig_pasteles.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold')
 
@@ -305,7 +301,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
 
     # ── Figura B: Gantt + Histograma ──────────────────────────────────────────
     if cajeros <= 6:
-        fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 6))
+        fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 5))
         fig_mon.patch.set_facecolor('white')
 
         ax3.set_title("Diagrama de Gantt - Monitoreo de Operaciones", fontweight='bold')
@@ -339,7 +335,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         st.image("graficas_monitoreo.jpg", use_container_width=True)
 
     # ── Gráfica de fila para el PDF ───────────────────────────────────────────
-    fig_pdf, ax_pdf = plt.subplots(figsize=(8, 3.5))
+    fig_pdf, ax_pdf = plt.subplots(figsize=(8, 3))
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
     ax_pdf.set_title("Distribución de Tiempos de Espera en Fila",
                      fontweight='bold', fontsize=11)
