@@ -170,34 +170,34 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
     # ── Página 2: Las 3 secciones en una sola hoja ───────────────────────────
-    # Presupuesto A4: 297mm - 28 superior - 15 inferior = 254mm útiles
-    # Sección 1: título(11) + imagen(52) + sep(4) = 67mm
-    # Sección 2: título(11) + imagen(52) + sep(4) = 67mm
-    # Sección 3: título(11) + imagen(50)           = 61mm
-    # Total: 67 + 67 + 61 = 195mm  ✅ cabe en 254mm
+    # Proporción imágenes (16,5) a w=190mm: alto real = 190 × (5/16) = ~59mm
+    # Sección 1: título(11) + imagen(59) + sep(3) = 73mm
+    # Sección 2: título(11) + imagen(59) + sep(3) = 73mm
+    # Sección 3: título(11) + imagen(45)           = 56mm
+    # Total: 73 + 73 + 56 = 202mm  ✅ cabe en 254mm útiles
     pdf.add_page()
     pdf.set_y(28)
 
     # --- Sección 1: Dashboard (pasteles) ---
     pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
     Y_PASTELES = pdf.get_y()
-    ALTO_PASTELES = 52
+    ALTO_PASTELES = 59
     if os.path.exists("graficas_pasteles.jpg"):
         pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190)
-    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 4)
+    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 3)
 
     # --- Sección 2: Monitoreo en tiempo real (Gantt + Histograma) ---
     pdf.seccion_titulo("Monitoreo en Tiempo Real")
     Y_MONITOREO = pdf.get_y()
-    ALTO_MONITOREO = 52
+    ALTO_MONITOREO = 59
     if os.path.exists("graficas_monitoreo.jpg"):
         pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190)
-    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 4)
+    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 3)
 
     # --- Sección 3: Tiempos de espera en fila (misma página, siempre) ---
     pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
     if os.path.exists("grafica_fila_pdf.jpg"):
-        pdf.image("grafica_fila_pdf.jpg", x=40, y=pdf.get_y(), w=130)
+        pdf.image("grafica_fila_pdf.jpg", x=10, y=pdf.get_y(), w=170)
 
     pdf.output("Reporte_Simulacion.pdf")
 
@@ -335,7 +335,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         st.image("graficas_monitoreo.jpg", use_container_width=True)
 
     # ── Gráfica de fila para el PDF ───────────────────────────────────────────
-    fig_pdf, ax_pdf = plt.subplots(figsize=(8, 3))
+    fig_pdf, ax_pdf = plt.subplots(figsize=(10, 2.8))
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
     ax_pdf.set_title("Distribución de Tiempos de Espera en Fila",
                      fontweight='bold', fontsize=11)
