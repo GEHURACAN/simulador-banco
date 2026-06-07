@@ -169,36 +169,33 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    # ── Página 2: Las 3 secciones en una sola hoja ───────────────────────────
-    # Proporción imágenes (16,5) a w=190mm: alto real = 190 × (5/16) = ~59mm
-    # Sección 1: título(11) + imagen(59) + sep(3) = 73mm
-    # Sección 2: título(11) + imagen(59) + sep(3) = 73mm
-    # Sección 3: título(11) + imagen(45)           = 56mm
-    # Total: 73 + 73 + 56 = 202mm  ✅ cabe en 254mm útiles
+    # ── Página 2: Gráficas — respeta las mismas validaciones que la web ───────
+    # cajeros <= 6 → se generan pasteles + monitoreo + fila (3 secciones)
+    # cajeros >  6 → solo se generan pasteles + fila    (2 secciones)
     pdf.add_page()
     pdf.set_y(28)
 
-    # --- Sección 1: Dashboard (pasteles) ---
-    pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
-    Y_PASTELES = pdf.get_y()
-    ALTO_PASTELES = 68
+    # --- Sección 1: Dashboard (pasteles) — siempre existe ---
     if os.path.exists("graficas_pasteles.jpg"):
+        pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
+        Y_PASTELES = pdf.get_y()
+        ALTO_PASTELES = 68
         pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190, h=ALTO_PASTELES)
-    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 8)
+        pdf.set_y(Y_PASTELES + ALTO_PASTELES + 8)
 
-    # --- Sección 2: Monitoreo en tiempo real (Gantt + Histograma) ---
-    pdf.seccion_titulo("Monitoreo en Tiempo Real")
-    Y_MONITOREO = pdf.get_y()
-    ALTO_MONITOREO = 68
+    # --- Sección 2: Monitoreo (Gantt + Histograma) — solo si cajeros <= 6 ---
     if os.path.exists("graficas_monitoreo.jpg"):
+        pdf.seccion_titulo("Monitoreo en Tiempo Real")
+        Y_MONITOREO = pdf.get_y()
+        ALTO_MONITOREO = 68
         pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190, h=ALTO_MONITOREO)
-    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 8)
+        pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 8)
 
-    # --- Sección 3: Tiempos de espera en fila (misma página, siempre) ---
-    pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
-    Y_FILA = pdf.get_y()
-    ALTO_FILA = 68
+    # --- Sección 3: Tiempos de espera en fila — siempre existe ---
     if os.path.exists("grafica_fila_pdf.jpg"):
+        pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
+        Y_FILA = pdf.get_y()
+        ALTO_FILA = 68
         pdf.image("grafica_fila_pdf.jpg", x=10, y=Y_FILA, w=190, h=ALTO_FILA)
 
     pdf.output("Reporte_Simulacion.pdf")
@@ -217,6 +214,12 @@ escenario = st.sidebar.selectbox("Escenario de Demanda:", [("1. ALTA DEMANDA", 1
 if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
 
     df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1])
+
+    # Limpiar imágenes de runs anteriores para evitar que el PDF
+    # use gráficas de una simulación previa con distinto número de cajeros
+    for archivo in ["graficas_pasteles.jpg", "graficas_monitoreo.jpg", "grafica_fila_pdf.jpg"]:
+        if os.path.exists(archivo):
+            os.remove(archivo)
 
     espera_calculada = df['H.Inicio'] - df['H.Llegada']
     df.insert(5, 'Esperó_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
