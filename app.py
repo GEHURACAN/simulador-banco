@@ -72,7 +72,6 @@ def simular_banco_multicajero(num_clientes, num_cajeros, modo_demanda):
 
     columnas = ["Cliente", "Cajero", "T.Entre", "H.Llegada", "H.Inicio",
                 "Operación", "T.Servicio", "H.Salida", "T.Sistema"]
-
     return pd.DataFrame(datos, columns=columnas), ocio_acumulado_cajeros
 
 # ==========================================
@@ -108,7 +107,7 @@ def generar_analisis_dinamico(df, ocio_list, num_cajeros, num_clientes):
     return analisis
 
 # ==========================================
-# 3. PDF EJECUTIVO — paginación dinámica
+# 3. PDF EJECUTIVO
 # ==========================================
 class PDFReport(FPDF):
     def header(self):
@@ -126,6 +125,7 @@ class PDFReport(FPDF):
         self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
     def seccion_titulo(self, texto):
+        """Título azul con línea separadora — estilo uniforme en todo el PDF."""
         self.set_font("Arial", 'B', 12)
         self.set_text_color(41, 128, 185)
         self.cell(0, 8, txt=texto, ln=True)
@@ -133,22 +133,19 @@ class PDFReport(FPDF):
         self.set_line_width(0.5)
         self.line(10, self.get_y(), 200, self.get_y())
         self.ln(3)
+        self.set_text_color(60, 60, 60)  # Restaurar color de texto
 
 
 def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     pdf = PDFReport()
     pdf.add_page()
-
-    azul_titulos = (41, 128, 185)
-    gris_texto   = (60, 60, 60)
-
     pdf.set_y(30)
 
-    # --- Página 1: Resumen operativo ---
+    # ── Página 1: Resumen operativo ──────────────────────────────────────────
     pdf.seccion_titulo("Resumen General Operativo")
 
     pdf.set_font("Arial", 'B', 10)
-    pdf.set_text_color(*gris_texto)
+    pdf.set_text_color(60, 60, 60)
     pdf.cell(0, 6, txt="Carga de trabajo por cajero (Muestra):", ln=True)
     pdf.set_font("Arial", '', 10)
 
@@ -168,51 +165,45 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
 
     pdf.seccion_titulo("Analisis Especializado")
     pdf.set_font("Arial", '', 10)
-    pdf.set_text_color(*gris_texto)
     analisis_limpio = analisis.replace("ANÁLISIS OPERATIVO Y RECOMENDACIONES:\n\n", "")
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    # --- Página 2: Dashboard (4 gráficas) + gráfica de fila bien posicionada ---
-    if os.path.exists("graficas_simulacion.jpg"):
+    # ── Página 2: Gráficas con títulos uniformes ─────────────────────────────
+    pdf.add_page()
+    pdf.set_y(28)
+
+    # --- Sección 1: Dashboard (pasteles) ---
+    pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
+    Y_PASTELES = pdf.get_y()
+    ALTO_PASTELES = 62
+    if os.path.exists("graficas_pasteles.jpg"):
+        pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190)
+    pdf.set_y(Y_PASTELES + ALTO_PASTELES + 6)
+
+    # --- Sección 2: Monitoreo en tiempo real (Gantt + Histograma) ---
+    pdf.seccion_titulo("Monitoreo en Tiempo Real")
+    Y_MONITOREO = pdf.get_y()
+    ALTO_MONITOREO = 62
+    if os.path.exists("graficas_monitoreo.jpg"):
+        pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190)
+    pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 6)
+
+    # --- Sección 3: Tiempos de espera en fila ---
+    # Verificar si cabe en la misma página
+    Y_ACTUAL = pdf.get_y()
+    ALTO_SECCION_FILA = 78
+    ESPACIO_DISPONIBLE = 297 - 15 - Y_ACTUAL
+
+    if ESPACIO_DISPONIBLE < ALTO_SECCION_FILA:
         pdf.add_page()
         pdf.set_y(28)
 
-        # Título sección dashboard
-        pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
-
-        # Altura que ocupa el dashboard — se guarda para calcular el espacio restante
-        Y_INICIO_DASHBOARD = pdf.get_y()
-        ALTO_DASHBOARD     = 130   # alto en mm de la imagen del dashboard
-
-        pdf.image("graficas_simulacion.jpg", x=10, y=Y_INICIO_DASHBOARD, w=190)
-
-        # Calcular posición Y tras el dashboard con margen de separación
-        Y_TRAS_DASHBOARD = Y_INICIO_DASHBOARD + ALTO_DASHBOARD + 15
-
-        # Espacio disponible hasta el pie de página (página A4 = 297 mm, margen inferior ~15 mm)
-        ESPACIO_DISPONIBLE = 297 - 15 - Y_TRAS_DASHBOARD
-
-        # Alto real de la sección de fila: título (13 mm) + imagen (65 mm) = ~78 mm
-        ALTO_SECCION_FILA  = 78
-
-        if ESPACIO_DISPONIBLE < ALTO_SECCION_FILA:
-            # No cabe → nueva página
-            pdf.add_page()
-            pdf.set_y(28)
-        else:
-            # Sí cabe → posicionamos debajo del dashboard con separación
-            pdf.set_y(Y_TRAS_DASHBOARD)
-
-        # Título sección fila
-        pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
-
-        if os.path.exists("grafica_fila_pdf.jpg"):
-            # Centrada horizontalmente: x = (210 - 130) / 2 = 40
-            pdf.image("grafica_fila_pdf.jpg", x=40, y=pdf.get_y(), w=130)
+    pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
+    if os.path.exists("grafica_fila_pdf.jpg"):
+        pdf.image("grafica_fila_pdf.jpg", x=40, y=pdf.get_y(), w=130)
 
     pdf.output("Reporte_Simulacion.pdf")
-
 
 # ==========================================
 # 4. INTERFAZ STREAMLIT
@@ -221,8 +212,8 @@ st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
 st.sidebar.header("⚙️ Parámetros de Control")
-clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
-cajeros  = st.sidebar.number_input("Número de cajeros activos:",    min_value=1, max_value=500,  value=6)
+clientes  = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
+cajeros   = st.sidebar.number_input("Número de cajeros activos:",    min_value=1, max_value=500,  value=6)
 escenario = st.sidebar.selectbox("Escenario de Demanda:", [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)])
 
 if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
@@ -266,23 +257,13 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
 
     mapa_colores = {"Depósito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
 
-    if cajeros <= 6:
-        fig, axs = plt.subplots(2, 2, figsize=(16, 12))
-        fig.patch.set_facecolor('white')
-        fig.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold', y=0.98)
-        fig.text(0.5, 0.51, "(MONITOREO EN TIEMPO REAL)", ha='center', va='center',
-                 fontsize=15, fontweight='bold', color='darkblue')
-        plt.subplots_adjust(hspace=0.35, wspace=0.3)
-        ax1, ax2, ax3, ax4 = axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]
-    else:
-        fig, axs = plt.subplots(1, 2, figsize=(16, 6))
-        fig.patch.set_facecolor('white')
-        fig.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold')
-        ax1, ax2 = axs[0], axs[1]
+    # ── Figura A: Pasteles ────────────────────────────────────────────────────
+    fig_pasteles, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig_pasteles.patch.set_facecolor('white')
+    fig_pasteles.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold')
 
-    # Pastel: servicios
-    servicios_agrupados  = df.groupby("Operación")["T.Servicio"].sum()
-    mapa_etiquetas_serv  = {"Depósito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
+    servicios_agrupados = df.groupby("Operación")["T.Servicio"].sum()
+    mapa_etiquetas_serv = {"Depósito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
     etiquetas_serv = [mapa_etiquetas_serv.get(op, op) for op in servicios_agrupados.index]
     colores_serv   = [mapa_colores.get(op, '#000000') for op in servicios_agrupados.index]
     ax1.pie(servicios_agrupados, labels=etiquetas_serv, autopct='%1.1f%%',
@@ -290,7 +271,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
     ax1.set_title("Distribución de Tiempo de Servicio", fontweight='bold')
 
-    # Pastel: ocio por rangos
     try:
         ocio_series = pd.Series(ocio_list)
         if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
@@ -318,8 +298,16 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     except Exception as e:
         st.error(f"⚠️ Error en pastel de ocio: {e}")
 
-    # Gantt e Histograma (solo si cajeros <= 6)
+    plt.tight_layout()
+    plt.savefig("graficas_pasteles.jpg", bbox_inches='tight', dpi=120,
+                facecolor='white', transparent=False)
+    plt.close(fig_pasteles)
+
+    # ── Figura B: Gantt + Histograma ──────────────────────────────────────────
     if cajeros <= 6:
+        fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 6))
+        fig_mon.patch.set_facecolor('white')
+
         ax3.set_title("Diagrama de Gantt - Monitoreo de Operaciones", fontweight='bold')
         for idx, row in df.iterrows():
             ax3.barh(row['Cajero'], row['T.Servicio'], left=row['H.Inicio'],
@@ -338,17 +326,19 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         ax4.legend()
         ax4.grid(axis='y', linestyle='--', alpha=0.5)
 
-        if clientes > 10:
-            axs[1, 0].remove()
-            gs = axs[1, 1].get_gridspec()
-            axs[1, 1].set_subplotspec(gs[1, :])
+        plt.tight_layout()
+        plt.savefig("graficas_monitoreo.jpg", bbox_inches='tight', dpi=120,
+                    facecolor='white', transparent=False)
+        plt.close(fig_mon)
 
-    plt.tight_layout()
-    plt.savefig("graficas_simulacion.jpg", bbox_inches='tight', dpi=120,
-                facecolor='white', transparent=False)
-    st.pyplot(fig)
+    # Mostrar en Streamlit con subtítulos como separadores visuales
+    st.markdown("##### Distribución de Servicios y Tiempos de Ocio")
+    st.image("graficas_pasteles.jpg", use_container_width=True)
+    if cajeros <= 6 and os.path.exists("graficas_monitoreo.jpg"):
+        st.markdown("##### Monitoreo en Tiempo Real")
+        st.image("graficas_monitoreo.jpg", use_container_width=True)
 
-    # Gráfica de fila para el PDF — tamaño ajustado para caber bien en página
+    # ── Gráfica de fila para el PDF ───────────────────────────────────────────
     fig_pdf, ax_pdf = plt.subplots(figsize=(8, 3.5))
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
     ax_pdf.set_title("Distribución de Tiempos de Espera en Fila",
@@ -358,8 +348,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     ax_pdf.tick_params(axis='both', which='major', labelsize=9)
     ax_pdf.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
-    plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=130,
-                facecolor='white')
+    plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=130, facecolor='white')
     plt.close(fig_pdf)
 
 # ==========================================
@@ -381,7 +370,7 @@ if 'df' in st.session_state:
         hora_apertura = pd.to_datetime('2026-06-05 09:00:00')
         df_export['Hora_Llegada_Reloj'] = (hora_apertura +
             pd.to_timedelta(df_export['H.Llegada'], unit='m')).dt.strftime('%H:%M:%S')
-        df_export['Hora_Salida_Reloj']  = (hora_apertura +
+        df_export['Hora_Salida_Reloj'] = (hora_apertura +
             pd.to_timedelta(df_export['H.Salida'],  unit='m')).dt.strftime('%H:%M:%S')
 
         cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera',
