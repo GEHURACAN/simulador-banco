@@ -304,28 +304,45 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
                 facecolor='white', transparent=False)
     plt.close(fig_pasteles)
 
-    # ── Figura B: Gantt + Histograma ──────────────────────────────────────────
+    # ── Figura B: Monitoreo (Gantt y/o Histograma) ───────────────────────────
+    # Reglas:
+    #   cajeros <= 6 y clientes <= 10 → Gantt + Histograma (lado a lado)
+    #   cajeros <= 6 y clientes >  10 → solo Histograma (ancho completo)
+    #   cajeros >  6                  → no se genera graficas_monitoreo.jpg
     if cajeros <= 6:
-        fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 5))
-        fig_mon.patch.set_facecolor('white')
+        if clientes <= 10:
+            fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 5))
+            fig_mon.patch.set_facecolor('white')
 
-        ax3.set_title("Diagrama de Gantt - Monitoreo de Operaciones", fontweight='bold')
-        for idx, row in df.iterrows():
-            ax3.barh(row['Cajero'], row['T.Servicio'], left=row['H.Inicio'],
-                     color=mapa_colores.get(row['Operación'], '#000000'),
-                     edgecolor='grey', height=0.6)
-        ax3.set_yticks(range(1, cajeros + 1))
-        ax3.set_yticklabels([f"Cajero {i}" for i in range(1, cajeros + 1)], fontsize=9)
-        handles = [mpatches.Patch(color=mapa_colores[k], label=k) for k in mapa_colores]
-        ax3.legend(handles=handles, loc='lower right')
-        ax3.grid(axis='x', linestyle='--', alpha=0.5)
+            ax3.set_title("Diagrama de Gantt - Monitoreo de Operaciones", fontweight='bold')
+            for idx, row in df.iterrows():
+                ax3.barh(row['Cajero'], row['T.Servicio'], left=row['H.Inicio'],
+                         color=mapa_colores.get(row['Operación'], '#000000'),
+                         edgecolor='grey', height=0.6)
+            ax3.set_yticks(range(1, cajeros + 1))
+            ax3.set_yticklabels([f"Cajero {i}" for i in range(1, cajeros + 1)], fontsize=9)
+            handles = [mpatches.Patch(color=mapa_colores[k], label=k) for k in mapa_colores]
+            ax3.legend(handles=handles, loc='lower right')
+            ax3.grid(axis='x', linestyle='--', alpha=0.5)
 
-        ax4.set_title("Distribución del Tiempo Total en Sistema", fontweight='bold')
-        ax4.hist(df['T.Sistema'], bins=12, color="#3498db", edgecolor='white', alpha=0.85)
-        ax4.axvline(df['T.Sistema'].mean(), color='red', linestyle='dashed', linewidth=2,
-                    label=f"Media: {df['T.Sistema'].mean():.2f} min")
-        ax4.legend()
-        ax4.grid(axis='y', linestyle='--', alpha=0.5)
+            ax4.set_title("Distribución del Tiempo Total en Sistema", fontweight='bold')
+            ax4.hist(df['T.Sistema'], bins=12, color="#3498db", edgecolor='white', alpha=0.85)
+            ax4.axvline(df['T.Sistema'].mean(), color='red', linestyle='dashed', linewidth=2,
+                        label=f"Media: {df['T.Sistema'].mean():.2f} min")
+            ax4.legend()
+            ax4.grid(axis='y', linestyle='--', alpha=0.5)
+
+        else:
+            # clientes > 10: solo Histograma en ancho completo
+            fig_mon, ax4 = plt.subplots(1, 1, figsize=(16, 5))
+            fig_mon.patch.set_facecolor('white')
+
+            ax4.set_title("Distribución del Tiempo Total en Sistema", fontweight='bold')
+            ax4.hist(df['T.Sistema'], bins=12, color="#3498db", edgecolor='white', alpha=0.85)
+            ax4.axvline(df['T.Sistema'].mean(), color='red', linestyle='dashed', linewidth=2,
+                        label=f"Media: {df['T.Sistema'].mean():.2f} min")
+            ax4.legend()
+            ax4.grid(axis='y', linestyle='--', alpha=0.5)
 
         plt.tight_layout()
         plt.savefig("graficas_monitoreo.jpg", bbox_inches='tight', dpi=120,
