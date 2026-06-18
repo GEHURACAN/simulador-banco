@@ -414,7 +414,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     resumen_operaciones.columns = ['Cantidad', 'Servicio Promedio', 'Desv. Servicio', 'Total Servicio', 'Espera Promedio']
     st.dataframe(resumen_operaciones, use_container_width=True)
 
-    # ── Tabla de espera por operación (NUEVO) ────────────────────────────
+    # ── Tabla de espera por operación ────────────────────────────────────
     st.subheader("⏳ Análisis de Espera por Tipo de Operación")
     espera_por_operacion = df.groupby('Operación').agg({
         'T.Espera': ['mean', 'max', 'min', 'std'],
@@ -423,26 +423,38 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     espera_por_operacion.columns = ['Espera Promedio', 'Espera Máxima', 'Espera Mínima', 'Desv. Espera', 'Clientes que Esperaron']
     st.dataframe(espera_por_operacion, use_container_width=True)
 
-    # ── Gráfico de espera por operación (NUEVO) ──────────────────────────
+    # ── Gráfico de espera por operación (CORREGIDO) ──────────────────────
     st.markdown("##### Distribución de Tiempo de Espera por Operación")
     fig_espera, ax = plt.subplots(figsize=(10, 4))
     df_espera = df[df['T.Espera'] > 0]  # Solo clientes que esperaron
+    
     if len(df_espera) > 0:
         # Crear boxplot por operación
         operaciones_unicas = df_espera['Operación'].unique()
-        datos_boxplot = [df_espera[df_espera['Operación'] == op]['T.Espera'].values for op in operaciones_unicas]
-        bp = ax.boxplot(datos_boxplot, labels=operaciones_unicas, patch_artist=True)
+        datos_boxplot = []
+        operaciones_validas = []
         
-        # Colorear los boxplots
-        colores_box = {'Depósito': '#f39c12', 'Retiro': '#3498db', 'Transferencia': '#e74c3c'}
-        for patch, op in zip(bp['boxes'], operaciones_unicas):
-            patch.set_facecolor(colores_box.get(op, '#95a5a6'))
+        for op in operaciones_unicas:
+            datos_op = df_espera[df_espera['Operación'] == op]['T.Espera'].values
+            if len(datos_op) > 0:  # Solo incluir si hay datos
+                datos_boxplot.append(datos_op)
+                operaciones_validas.append(op)
         
-        ax.set_title('Distribución de Tiempo de Espera por Tipo de Operación', fontweight='bold')
-        ax.set_xlabel('Tipo de Operación')
-        ax.set_ylabel('Tiempo de Espera (minutos)')
-        ax.grid(axis='y', linestyle='--', alpha=0.3)
-        st.pyplot(fig_espera)
+        if len(datos_boxplot) > 0:
+            bp = ax.boxplot(datos_boxplot, labels=operaciones_validas, patch_artist=True)
+            
+            # Colorear los boxplots
+            colores_box = {'Depósito': '#f39c12', 'Retiro': '#3498db', 'Transferencia': '#e74c3c'}
+            for patch, op in zip(bp['boxes'], operaciones_validas):
+                patch.set_facecolor(colores_box.get(op, '#95a5a6'))
+            
+            ax.set_title('Distribución de Tiempo de Espera por Tipo de Operación', fontweight='bold')
+            ax.set_xlabel('Tipo de Operación')
+            ax.set_ylabel('Tiempo de Espera (minutos)')
+            ax.grid(axis='y', linestyle='--', alpha=0.3)
+            st.pyplot(fig_espera)
+        else:
+            st.info("✅ Ningún cliente esperó en fila. Todos fueron atendidos inmediatamente.")
     else:
         st.info("✅ Ningún cliente esperó en fila. Todos fueron atendidos inmediatamente.")
     plt.close(fig_espera)
