@@ -7,12 +7,15 @@ if sys.platform == 'win32':
 import streamlit as st
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
+from scipy.stats import truncnorm
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from fpdf import FPDF
 import os
 import warnings
+import heapq
+import math
+from typing import Tuple, List
 
 warnings.filterwarnings("ignore")
 
@@ -24,28 +27,82 @@ st.set_page_config(
 )
 
 # ==========================================
-# 1. LÓGICA DE SIMULACIÓN
+# UTILIDADES
 # ==========================================
-def simular_banco_multicajero(num_clientes, num_cajeros, modo_demanda):
+def trunc_normal_sample(mu: float, sigma: float, low: float, high: float) -> float:
+    a, b = (low - mu) / sigma, (high - mu) / sigma
+    return truncnorm.rvs(a, b, loc=mu, scale=sigma)
+
+def ic_95(data: List[float]) -> Tuple[float, float, float]:
+    arr = np.array(data)
+    mean = arr.mean()
+    se = arr.std(ddof=1) / math.sqrt(len(arr)) if len(arr) > 1 else 0.0
+    z = 1.96
+    return mean, mean - z * se, mean + z * se
+
+# ==========================================
+# 1. LÓGICA DE SIMULACIÓN (mejorada)
+# ==========================================
+def simular_banco_multicajero(
+    num_clientes: int,
+    num_cajeros: int,
+    modo_demanda: int,
+    seed: int = None,
+    use_heap: bool = False,
+    deposito_mu: float = 3.0,
+    deposito_sigma: float = 0.2,
+    deposito_min: float = 0.1,
+    deposito_max: float = 10.0
+) -> Tuple[pd.DataFrame, List[float]]:
+    """
+    Simula un sistema multicajero.
+    Retorna DataFrame con registro por cliente y lista de ocio por cajero.
+    Parámetros:
+      - modo_demanda: 1 -> alta (media llegada 1.0), 2 -> baja (media llegada 20.0)
+      - seed: reproducibilidad (None = aleatorio)
+      - use_heap: si True usa heapq para eficiencia con muchos cajeros
+    Unidades: minutos
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
     media_llegada = 1.0 if modo_demanda == 1 else 20.0
     datos = []
-    h_llegada_ant = 0
+    h_llegada_ant = 0.0
+
+    # tiempos_libres_cajeros[j] = instante (min) en que el cajero j queda libre
     tiempos_libres_cajeros = [0.0] * num_cajeros
     ocio_acumulado_cajeros = [0.0] * num_cajeros
 
+    # heap opcional: (tiempo_libre, id_cajero)
+    if use_heap:
+        heap = [(0.0, j) for j in range(num_cajeros)]
+        heapq.heapify(heap)
+
     for i in range(1, num_clientes + 1):
+        # Generar tiempo entre llegadas exponencial (media = media_llegada)
         ri_llegadas = np.random.rand()
         t_entre_llegadas = -media_llegada * np.log(ri_llegadas)
         h_llegada = h_llegada_ant + t_entre_llegadas
 
-        h_inicio_posible = min(tiempos_libres_cajeros)
-        id_cajero = tiempos_libres_cajeros.index(h_inicio_posible)
+        # ===== actualizar ocio correctamente para TODOS los cajeros libres hasta h_llegada
+        for j in range(num_cajeros):
+            if tiempos_libres_cajeros[j] < h_llegada:
+                ocio_acumulado_cajeros[j] += (h_llegada - tiempos_libres_cajeros[j])
+                tiempos_libres_cajeros[j] = h_llegada  # sincronizamos su "último tiempo libre" hasta llegada
 
-        if h_llegada > h_inicio_posible:
-            ocio_acumulado_cajeros[id_cajero] += (h_llegada - h_inicio_posible)
+        # ===== seleccionar cajero disponible (el que quede libre antes)
+        if use_heap:
+            # peek el menor tiempo libre
+            h_inicio_posible, id_cajero = heap[0]
+        else:
+            h_inicio_posible = min(tiempos_libres_cajeros)
+            id_cajero = tiempos_libres_cajeros.index(h_inicio_posible)
 
+        # inicio de atención
         h_inicio = max(h_inicio_posible, h_llegada)
 
+        # operación aleatoria
         ri_operacion = np.random.rand()
         if ri_operacion < 0.50:
             operacion = "Retiro"
@@ -54,33 +111,102 @@ def simular_banco_multicajero(num_clientes, num_cajeros, modo_demanda):
         else:
             operacion = "Depósito"
 
+        # tiempo de servicio según operación
         ri_servicio = np.random.rand()
         if operacion in ["Retiro", "Transferencia"]:
-            t_servicio = 1 + (2 - 1) * ri_servicio
+            # servicio uniforme entre 1 y 2 minutos (como en tu versión original)
+            t_servicio = 1.0 + (2.0 - 1.0) * ri_servicio
         else:
-            t_servicio = norm.ppf(ri_servicio, loc=3.0, scale=0.2)
+            # Depósito: usar normal truncada para evitar valores extremos o negativos
+            t_servicio = trunc_normal_sample(
+                mu=deposito_mu,
+                sigma=deposito_sigma,
+                low=deposito_min,
+                high=deposito_max
+            )
+
+        # asegurar no negativo y un mínimo razonable
+        t_servicio = max(0.01, float(t_servicio))
 
         h_salida = h_inicio + t_servicio
         t_sistema = h_salida - h_llegada
-        tiempos_libres_cajeros[id_cajero] = h_salida
+
+        # actualizar tiempos libres y heap si aplica
+        if use_heap:
+            # reemplazar la tupla del cajero en el heap
+            heapq.heapreplace(heap, (h_salida, id_cajero))
+            # sincronizar arreglo auxiliar para trazabilidad
+            tiempos_libres_cajeros[id_cajero] = h_salida
+        else:
+            tiempos_libres_cajeros[id_cajero] = h_salida
 
         datos.append([
             i, id_cajero + 1, t_entre_llegadas, h_llegada, h_inicio,
+            None,  # Esperó_Fila se insertará después
+            None,  # T.Espera se insertará después
             operacion, t_servicio, h_salida, t_sistema
         ])
+
         h_llegada_ant = h_llegada
 
     columnas = ["Cliente", "Cajero", "T.Entre", "H.Llegada", "H.Inicio",
-                "Operación", "T.Servicio", "H.Salida", "T.Sistema"]
-    return pd.DataFrame(datos, columns=columnas), ocio_acumulado_cajeros
+                "Esperó_Fila", "T.Espera", "Operación", "T.Servicio", "H.Salida", "T.Sistema"]
+
+    df = pd.DataFrame(datos, columns=columnas)
+
+    # calcular Esperó_Fila y T.Espera
+    espera_calculada = df['H.Inicio'] - df['H.Llegada']
+    df['Esperó_Fila'] = np.where(espera_calculada > 1e-9, 'Sí', 'No')
+    df['T.Espera'] = espera_calculada
+
+    return df, ocio_acumulado_cajeros
 
 # ==========================================
-# 2. ANÁLISIS PROFESIONAL
+# 2. REPLICACIONES Y ESTADÍSTICAS
 # ==========================================
-def generar_analisis_dinamico(df, ocio_list, num_cajeros, num_clientes):
+def replicar_simulacion(
+    R: int,
+    num_clientes: int,
+    num_cajeros: int,
+    modo_demanda: int,
+    use_heap: bool = False
+):
+    resultados_prom_ocio = []
+    resultados_pct_tiempo = []
+    for r in range(R):
+        df, ocio = simular_banco_multicajero(
+            num_clientes=num_clientes,
+            num_cajeros=num_cajeros,
+            modo_demanda=modo_demanda,
+            seed=r,
+            use_heap=use_heap
+        )
+        t_final = df['H.Salida'].max()
+        pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100 if t_final > 0 else 0.0
+        prom_ocio = sum(ocio) / num_cajeros
+        resultados_prom_ocio.append(prom_ocio)
+        resultados_pct_tiempo.append(pct_tiempo_sistema)
+
+    prom_ocio_mean, prom_ocio_lo, prom_ocio_hi = ic_95(resultados_prom_ocio)
+    pct_mean, pct_lo, pct_hi = ic_95(resultados_pct_tiempo)
+
+    resumen = {
+        "prom_ocio_mean": prom_ocio_mean,
+        "prom_ocio_ic": (prom_ocio_lo, prom_ocio_hi),
+        "pct_tiempo_mean": pct_mean,
+        "pct_tiempo_ic": (pct_lo, pct_hi),
+        "raw_prom_ocio": resultados_prom_ocio,
+        "raw_pct_tiempo": resultados_pct_tiempo
+    }
+    return resumen
+
+# ==========================================
+# 3. ANÁLISIS PROFESIONAL (sin cambios lógicos, mejor robustez)
+# ==========================================
+def generar_analisis_dinamico(df: pd.DataFrame, ocio_list: List[float], num_cajeros: int, num_clientes: int) -> str:
     t_final = df['H.Salida'].max()
-    prom_ocio = sum(ocio_list) / num_cajeros
-    pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100
+    prom_ocio = sum(ocio_list) / num_cajeros if num_cajeros > 0 else 0.0
+    pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100 if t_final > 0 else 0.0
 
     servicios = df.groupby("Operación")["T.Servicio"].sum()
     total_serv = servicios.sum()
@@ -107,7 +233,7 @@ def generar_analisis_dinamico(df, ocio_list, num_cajeros, num_clientes):
     return analisis
 
 # ==========================================
-# 3. PDF EJECUTIVO
+# 4. PDF EJECUTIVO (sin cambios funcionales)
 # ==========================================
 class PDFReport(FPDF):
     def header(self):
@@ -125,7 +251,6 @@ class PDFReport(FPDF):
         self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
     def seccion_titulo(self, texto):
-        """Título azul con línea separadora — estilo uniforme en todo el PDF."""
         self.set_font("Arial", 'B', 12)
         self.set_text_color(41, 128, 185)
         self.cell(0, 8, txt=texto, ln=True)
@@ -133,17 +258,14 @@ class PDFReport(FPDF):
         self.set_line_width(0.5)
         self.line(10, self.get_y(), 200, self.get_y())
         self.ln(3)
-        self.set_text_color(60, 60, 60)  # Restaurar color de texto
+        self.set_text_color(60, 60, 60)
 
-
-def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
+def crear_pdf(df: pd.DataFrame, analisis: str, prom_ocio: float, pct_tiempo_sistema: float, conteo_cajeros):
     pdf = PDFReport()
     pdf.add_page()
     pdf.set_y(30)
 
-    # ── Página 1: Resumen operativo ──────────────────────────────────────────
     pdf.seccion_titulo("Resumen General Operativo")
-
     pdf.set_font("Arial", 'B', 10)
     pdf.set_text_color(60, 60, 60)
     pdf.cell(0, 6, txt="Carga de trabajo por cajero (Muestra):", ln=True)
@@ -169,13 +291,9 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     analisis_limpio = analisis_limpio.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, txt=analisis_limpio)
 
-    # ── Página 2: Gráficas — respeta las mismas validaciones que la web ───────
-    # cajeros <= 6 → se generan pasteles + monitoreo + fila (3 secciones)
-    # cajeros >  6 → solo se generan pasteles + fila    (2 secciones)
     pdf.add_page()
     pdf.set_y(28)
 
-    # --- Sección 1: Dashboard (pasteles) — siempre existe ---
     if os.path.exists("graficas_pasteles.jpg"):
         pdf.seccion_titulo("Matriz de Graficas Operativas (Dashboard)")
         Y_PASTELES = pdf.get_y()
@@ -183,7 +301,6 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
         pdf.image("graficas_pasteles.jpg", x=10, y=Y_PASTELES, w=190, h=ALTO_PASTELES)
         pdf.set_y(Y_PASTELES + ALTO_PASTELES + 8)
 
-    # --- Sección 2: Monitoreo (Gantt + Histograma) — solo si cajeros <= 6 ---
     if os.path.exists("graficas_monitoreo.jpg"):
         pdf.seccion_titulo("Monitoreo en Tiempo Real")
         Y_MONITOREO = pdf.get_y()
@@ -191,7 +308,6 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
         pdf.image("graficas_monitoreo.jpg", x=10, y=Y_MONITOREO, w=190, h=ALTO_MONITOREO)
         pdf.set_y(Y_MONITOREO + ALTO_MONITOREO + 8)
 
-    # --- Sección 3: Tiempos de espera en fila — siempre existe ---
     if os.path.exists("grafica_fila_pdf.jpg"):
         pdf.seccion_titulo("Distribucion Avanzada de Tiempos de Espera en Fila")
         Y_FILA = pdf.get_y()
@@ -201,33 +317,38 @@ def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     pdf.output("Reporte_Simulacion.pdf")
 
 # ==========================================
-# 4. INTERFAZ STREAMLIT
+# 5. INTERFAZ STREAMLIT (adaptada)
 # ==========================================
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
 st.sidebar.header("⚙️ Parámetros de Control")
-clientes  = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=10)
+clientes  = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=100)
 cajeros   = st.sidebar.number_input("Número de cajeros activos:",    min_value=1, max_value=500,  value=6)
 escenario = st.sidebar.selectbox("Escenario de Demanda:", [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)])
+usar_heap = st.sidebar.checkbox("Usar heap para asignación (recomendado si cajeros>50)", value=False)
+replicas  = st.sidebar.number_input("Réplicas para IC (0 = desactivar):", min_value=0, max_value=500, value=0)
+seed_opt  = st.sidebar.number_input("Semilla (seed) opcional (-1 = aleatorio):", min_value=-1, max_value=999999, value=-1)
 
 if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
+    seed = None if seed_opt == -1 else int(seed_opt)
 
-    df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1])
+    df, ocio_list = simular_banco_multicajero(
+        num_clientes=clientes,
+        num_cajeros=cajeros,
+        modo_demanda=escenario[1],
+        seed=seed,
+        use_heap=usar_heap
+    )
 
-    # Limpiar imágenes de runs anteriores para evitar que el PDF
-    # use gráficas de una simulación previa con distinto número de cajeros
+    # limpiar imágenes previas
     for archivo in ["graficas_pasteles.jpg", "graficas_monitoreo.jpg", "grafica_fila_pdf.jpg"]:
         if os.path.exists(archivo):
             os.remove(archivo)
 
-    espera_calculada = df['H.Inicio'] - df['H.Llegada']
-    df.insert(5, 'Esperó_Fila', np.where(espera_calculada > 0, 'Sí', 'No'))
-    df.insert(6, 'T.Espera', espera_calculada)
-
     t_final            = df['H.Salida'].max()
-    pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100
-    prom_ocio          = sum(ocio_list) / cajeros
+    pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100 if t_final > 0 else 0.0
+    prom_ocio          = sum(ocio_list) / cajeros if cajeros > 0 else 0.0
     conteo_cajeros     = df['Cajero'].value_counts().sort_index()
     analisis_texto     = generar_analisis_dinamico(df, ocio_list, cajeros, clientes)
 
@@ -255,7 +376,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.info(analisis_texto)
 
     st.subheader("📊 Visualización de Datos")
-
     mapa_colores = {"Depósito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
 
     # ── Figura A: Pasteles ────────────────────────────────────────────────────
@@ -267,9 +387,10 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     mapa_etiquetas_serv = {"Depósito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
     etiquetas_serv = [mapa_etiquetas_serv.get(op, op) for op in servicios_agrupados.index]
     colores_serv   = [mapa_colores.get(op, '#000000') for op in servicios_agrupados.index]
-    ax1.pie(servicios_agrupados, labels=etiquetas_serv, autopct='%1.1f%%',
-            startangle=140, colors=colores_serv,
-            wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
+    if len(servicios_agrupados) > 0:
+        ax1.pie(servicios_agrupados, labels=etiquetas_serv, autopct='%1.1f%%',
+                startangle=140, colors=colores_serv,
+                wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
     ax1.set_title("Distribución de Tiempo de Servicio", fontweight='bold')
 
     try:
@@ -305,10 +426,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     plt.close(fig_pasteles)
 
     # ── Figura B: Monitoreo (Gantt y/o Histograma) ───────────────────────────
-    # Reglas:
-    #   cajeros <= 6 y clientes <= 10 → Gantt + Histograma (lado a lado)
-    #   cajeros <= 6 y clientes >  10 → solo Histograma (ancho completo)
-    #   cajeros >  6                  → no se genera graficas_monitoreo.jpg
     if cajeros <= 6:
         if clientes <= 10:
             fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 5))
@@ -333,7 +450,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             ax4.grid(axis='y', linestyle='--', alpha=0.5)
 
         else:
-            # clientes > 10: solo Histograma en ancho completo
             fig_mon, ax4 = plt.subplots(1, 1, figsize=(16, 5))
             fig_mon.patch.set_facecolor('white')
 
@@ -349,7 +465,6 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
                     facecolor='white', transparent=False)
         plt.close(fig_mon)
 
-    # Mostrar en Streamlit con subtítulos como separadores visuales
     st.markdown("##### Distribución de Servicios y Tiempos de Ocio")
     st.image("graficas_pasteles.jpg", use_container_width=True)
     if cajeros <= 6 and os.path.exists("graficas_monitoreo.jpg"):
@@ -369,8 +484,23 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=130, facecolor='white')
     plt.close(fig_pdf)
 
+    # Si el usuario pidió réplicas, ejecutar y mostrar IC
+    if replicas and replicas > 0:
+        resumen = replicar_simulacion(
+            R=int(replicas),
+            num_clientes=clientes,
+            num_cajeros=cajeros,
+            modo_demanda=escenario[1],
+            use_heap=usar_heap
+        )
+        st.subheader("📈 Resultados de Réplicas (IC 95%)")
+        st.write(f"Promedio Ocio por cajero: {resumen['prom_ocio_mean']:.4f} min")
+        st.write(f"IC 95% Ocio: [{resumen['prom_ocio_ic'][0]:.4f}, {resumen['prom_ocio_ic'][1]:.4f}]")
+        st.write(f"Promedio % Tiempo en Sistema: {resumen['pct_tiempo_mean']:.4f} %")
+        st.write(f"IC 95% % Tiempo en Sistema: [{resumen['pct_tiempo_ic'][0]:.4f}, {resumen['pct_tiempo_ic'][1]:.4f}]")
+
 # ==========================================
-# 5. EXPORTACIÓN
+# 6. EXPORTACIÓN (igual que antes)
 # ==========================================
 if 'df' in st.session_state:
     st.markdown("---")
