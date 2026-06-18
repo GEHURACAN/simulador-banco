@@ -14,7 +14,6 @@ from fpdf import FPDF
 import os
 import warnings
 from typing import Tuple, List
-import functools
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -38,8 +37,8 @@ st.set_page_config(
 # ==========================================
 PROB_RETIRO = 0.50
 PROB_TRANSFERENCIA = 0.20
-MEDIA_LLEGADA_ALTA = 1.0
-MEDIA_LLEGADA_BAJA = 20.0
+MEDIA_LLEGADA_ALTA = 1.5  # Media de llegadas en alta demanda (minutos)
+MEDIA_LLEGADA_BAJA = 20.0  # Media de llegadas en baja demanda (minutos)
 TIEMPO_SERVICIO_MIN = 1.0
 TIEMPO_SERVICIO_MAX = 2.0
 DEPOSITO_MEDIA = 3.0
@@ -81,7 +80,7 @@ def simular_banco_multicajero(
     servicio_ri = np.random.rand(num_clientes)
 
     for i in range(1, num_clientes + 1):
-        # Tiempo entre llegadas
+        # Tiempo entre llegadas (distribución exponencial)
         t_entre_llegadas = -media_llegada * np.log(llegadas_ri[i-1])
         h_llegada = h_llegada_ant + t_entre_llegadas
 
@@ -131,7 +130,7 @@ def simular_banco_multicajero(
                 "Operación", "T.Servicio", "H.Salida", "T.Sistema"]
     df = pd.DataFrame(datos, columns=columnas)
     
-    # Calcular espera con precisión numérica
+    # Calcular espera con precisión numérica (APLICA A TODOS LOS CLIENTES)
     espera_calculada = (df['H.Inicio'] - df['H.Llegada']).round(6)
     df.insert(5, 'Esperó_Fila', np.where(espera_calculada > PRECISION_NUMERICA, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
@@ -150,13 +149,19 @@ def generar_analisis_dinamico(
     """Genera un análisis detallado del sistema bancario."""
     t_final = df['H.Salida'].max()
     prom_ocio = sum(ocio_list) / num_cajeros
-    pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100
+    pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100 if t_final > 0 else 0
     
-    # Métricas de espera
+    # Métricas de espera (TODOS LOS CLIENTES)
     clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
     porcentaje_espera = (clientes_esperaron / len(df)) * 100
-    espera_promedio = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
+    espera_promedio = df['T.Espera'].mean()  # Promedio de TODOS los clientes
+    espera_promedio_esperaron = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
     espera_maxima = df['T.Espera'].max()
+    
+    # Espera por tipo de operación
+    espera_por_operacion = df.groupby('Operación')['T.Espera'].mean().round(3)
+    operacion_mas_espera = espera_por_operacion.idxmax() if len(espera_por_operacion) > 0 else "N/A"
+    max_espera_operacion = espera_por_operacion.max() if len(espera_por_operacion) > 0 else 0
 
     servicios = df.groupby("Operación")["T.Servicio"].sum()
     total_serv = servicios.sum()
@@ -194,19 +199,21 @@ def generar_analisis_dinamico(
     analisis += f"   - El tiempo promedio de los clientes en el sistema representa el {pct_tiempo_sistema:.2f}% del tiempo total de la simulación.\n"
     analisis += f"   - La fila única está funcionando correctamente para gestionar el flujo.\n\n"
 
-    # 4. Análisis de filas (NUEVO)
-    analisis += "4. Análisis de Filas y Espera:\n"
+    # 4. Análisis de filas (TODOS LOS CLIENTES)
+    analisis += "4. Análisis de Filas y Espera (Todos los Clientes):\n"
     analisis += f"   - Clientes que esperaron en fila: {clientes_esperaron} de {len(df)} ({porcentaje_espera:.1f}%)\n"
+    analisis += f"   - Tiempo promedio de espera (todos los clientes): {espera_promedio:.4f} minutos\n"
     if clientes_esperaron > 0:
-        analisis += f"   - Tiempo promedio de espera en fila: {espera_promedio:.2f} minutos\n"
-        analisis += f"   - Tiempo máximo de espera en fila: {espera_maxima:.2f} minutos\n"
-        if espera_promedio > 1.0:
+        analisis += f"   - Tiempo promedio de espera (solo los que esperaron): {espera_promedio_esperaron:.2f} minutos\n"
+        analisis += f"   - Tiempo máximo de espera: {espera_maxima:.2f} minutos\n"
+        analisis += f"   - Operación con mayor tiempo de espera promedio: {operacion_mas_espera} ({max_espera_operacion:.2f} min)\n"
+        if espera_promedio_esperaron > 1.0:
             analisis += "   - ⚠️ El tiempo de espera en fila supera 1 minuto. Considerar abrir más cajeros en horas pico.\n"
     else:
         analisis += "   - ✅ ¡Excelente! Ningún cliente esperó en fila. El sistema tiene capacidad suficiente.\n"
     analisis += "\n"
 
-    # 5. Eficiencia del sistema (NUEVO)
+    # 5. Eficiencia del sistema
     analisis += "5. Eficiencia del Sistema:\n"
     analisis += f"   - Tasa de utilización de cajeros: {tasa_utilizacion:.1f}%\n"
     if tasa_utilizacion > 85:
@@ -262,10 +269,11 @@ def crear_pdf(
     # ── Página 1: Resumen operativo ──────────────────────────────────────────
     pdf.seccion_titulo("Resumen General Operativo")
 
-    # Métricas de espera
+    # Métricas de espera (TODOS LOS CLIENTES)
     clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
     porcentaje_espera = (clientes_esperaron / len(df)) * 100
-    espera_promedio = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
+    espera_promedio = df['T.Espera'].mean()
+    espera_promedio_esperaron = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
 
     pdf.set_font("Arial", 'B', 10)
     pdf.set_text_color(60, 60, 60)
@@ -285,8 +293,9 @@ def crear_pdf(
     pdf.cell(0, 7, txt=f"  Tiempos Promedio de Clientes en el Sistema: {pct_tiempo_sistema:.2f}%", ln=True, fill=True)
     pdf.cell(0, 7, txt=f"  Promedio de Tiempo de Ocio en Cajas: {prom_ocio:.4f} min", ln=True, fill=True)
     pdf.cell(0, 7, txt=f"  Clientes que Esperaron en Fila: {clientes_esperaron} ({porcentaje_espera:.1f}%)", ln=True, fill=True)
+    pdf.cell(0, 7, txt=f"  Tiempo Promedio de Espera (Todos): {espera_promedio:.4f} min", ln=True, fill=True)
     if clientes_esperaron > 0:
-        pdf.cell(0, 7, txt=f"  Tiempo Promedio de Espera: {espera_promedio:.2f} min", ln=True, fill=True)
+        pdf.cell(0, 7, txt=f"  Tiempo Promedio de Espera (Solo los que esperaron): {espera_promedio_esperaron:.2f} min", ln=True, fill=True)
     pdf.ln(6)
 
     pdf.seccion_titulo("Analisis Especializado")
@@ -331,6 +340,7 @@ st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
 st.sidebar.header("⚙️ Parámetros de Control")
+st.sidebar.info(f"📊 Media de llegadas (Alta demanda): {MEDIA_LLEGADA_ALTA} min")
 clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=100)
 cajeros = st.sidebar.number_input("Número de cajeros activos:", min_value=1, max_value=500, value=6)
 escenario = st.sidebar.selectbox("Escenario de Demanda:", [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)])
@@ -368,7 +378,8 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     # Métricas adicionales
     clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
     porcentaje_espera = (clientes_esperaron / len(df)) * 100
-    espera_promedio = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
+    espera_promedio = df['T.Espera'].mean()
+    espera_promedio_esperaron = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
     tasa_utilizacion = (1 - (prom_ocio / t_final)) * 100 if t_final > 0 else 0
 
     st.session_state['df'] = df
@@ -399,9 +410,42 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
         'Cliente': 'count',
         'T.Servicio': ['mean', 'std', 'sum'],
         'T.Espera': 'mean'
-    }).round(2)
+    }).round(3)
     resumen_operaciones.columns = ['Cantidad', 'Servicio Promedio', 'Desv. Servicio', 'Total Servicio', 'Espera Promedio']
     st.dataframe(resumen_operaciones, use_container_width=True)
+
+    # ── Tabla de espera por operación (NUEVO) ────────────────────────────
+    st.subheader("⏳ Análisis de Espera por Tipo de Operación")
+    espera_por_operacion = df.groupby('Operación').agg({
+        'T.Espera': ['mean', 'max', 'min', 'std'],
+        'Esperó_Fila': lambda x: (x == 'Sí').sum()
+    }).round(4)
+    espera_por_operacion.columns = ['Espera Promedio', 'Espera Máxima', 'Espera Mínima', 'Desv. Espera', 'Clientes que Esperaron']
+    st.dataframe(espera_por_operacion, use_container_width=True)
+
+    # ── Gráfico de espera por operación (NUEVO) ──────────────────────────
+    st.markdown("##### Distribución de Tiempo de Espera por Operación")
+    fig_espera, ax = plt.subplots(figsize=(10, 4))
+    df_espera = df[df['T.Espera'] > 0]  # Solo clientes que esperaron
+    if len(df_espera) > 0:
+        # Crear boxplot por operación
+        operaciones_unicas = df_espera['Operación'].unique()
+        datos_boxplot = [df_espera[df_espera['Operación'] == op]['T.Espera'].values for op in operaciones_unicas]
+        bp = ax.boxplot(datos_boxplot, labels=operaciones_unicas, patch_artist=True)
+        
+        # Colorear los boxplots
+        colores_box = {'Depósito': '#f39c12', 'Retiro': '#3498db', 'Transferencia': '#e74c3c'}
+        for patch, op in zip(bp['boxes'], operaciones_unicas):
+            patch.set_facecolor(colores_box.get(op, '#95a5a6'))
+        
+        ax.set_title('Distribución de Tiempo de Espera por Tipo de Operación', fontweight='bold')
+        ax.set_xlabel('Tipo de Operación')
+        ax.set_ylabel('Tiempo de Espera (minutos)')
+        ax.grid(axis='y', linestyle='--', alpha=0.3)
+        st.pyplot(fig_espera)
+    else:
+        st.info("✅ Ningún cliente esperó en fila. Todos fueron atendidos inmediatamente.")
+    plt.close(fig_espera)
 
     # ── Registro Detallado ─────────────────────────────────────────────────
     st.subheader("📋 Registro Operativo Detallado")
@@ -516,7 +560,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     # ── Gráfica de fila ────────────────────────────────────────────────────
     fig_pdf, ax_pdf = plt.subplots(figsize=(10, 2.8))
     ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
-    ax_pdf.set_title("Distribución de Tiempos de Espera en Fila",
+    ax_pdf.set_title("Distribución de Tiempos de Espera en Fila (Todos los Clientes)",
                      fontweight='bold', fontsize=11)
     ax_pdf.set_xlabel("Tiempo de espera (minutos)", fontsize=9)
     ax_pdf.set_ylabel("Cantidad de Clientes", fontsize=9)
@@ -526,7 +570,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=130, facecolor='white')
     plt.close(fig_pdf)
 
-    # ── Gráfica de evolución de la fila (NUEVO) ──────────────────────────
+    # ── Gráfica de evolución de la fila ──────────────────────────────────
     st.markdown("##### Evolución de la Fila en el Tiempo")
     fig_fila, ax_fila = plt.subplots(figsize=(10, 4))
     df_ordenado = df.sort_values('H.Llegada')
