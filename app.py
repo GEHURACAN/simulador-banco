@@ -423,29 +423,32 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     espera_por_operacion.columns = ['Espera Promedio', 'Espera Máxima', 'Espera Mínima', 'Desv. Espera', 'Clientes que Esperaron']
     st.dataframe(espera_por_operacion, use_container_width=True)
 
-    # ── Gráfico de espera por operación (CORREGIDO) ──────────────────────
+    # ── Gráfico de espera por operación (CORREGIDO DEFINITIVO) ──────────
     st.markdown("##### Distribución de Tiempo de Espera por Operación")
     fig_espera, ax = plt.subplots(figsize=(10, 4))
-    df_espera = df[df['T.Espera'] > 0]  # Solo clientes que esperaron
     
-    if len(df_espera) > 0:
-        # Crear boxplot por operación
-        operaciones_unicas = df_espera['Operación'].unique()
+    # Verificar si hay clientes que esperaron
+    if (df['T.Espera'] > 0).any():
+        df_espera = df[df['T.Espera'] > 0]
+        
+        # Preparar datos para boxplot
+        operaciones_con_espera = df_espera['Operación'].unique()
         datos_boxplot = []
-        operaciones_validas = []
+        etiquetas = []
         
-        for op in operaciones_unicas:
+        for op in operaciones_con_espera:
             datos_op = df_espera[df_espera['Operación'] == op]['T.Espera'].values
-            if len(datos_op) > 0:  # Solo incluir si hay datos
+            if len(datos_op) > 1:  # Necesita al menos 2 datos para boxplot
                 datos_boxplot.append(datos_op)
-                operaciones_validas.append(op)
+                etiquetas.append(op)
         
+        # Crear boxplot solo si hay datos suficientes
         if len(datos_boxplot) > 0:
-            bp = ax.boxplot(datos_boxplot, labels=operaciones_validas, patch_artist=True)
+            bp = ax.boxplot(datos_boxplot, labels=etiquetas, patch_artist=True)
             
             # Colorear los boxplots
             colores_box = {'Depósito': '#f39c12', 'Retiro': '#3498db', 'Transferencia': '#e74c3c'}
-            for patch, op in zip(bp['boxes'], operaciones_validas):
+            for patch, op in zip(bp['boxes'], etiquetas):
                 patch.set_facecolor(colores_box.get(op, '#95a5a6'))
             
             ax.set_title('Distribución de Tiempo de Espera por Tipo de Operación', fontweight='bold')
@@ -454,9 +457,10 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
             ax.grid(axis='y', linestyle='--', alpha=0.3)
             st.pyplot(fig_espera)
         else:
-            st.info("✅ Ningún cliente esperó en fila. Todos fueron atendidos inmediatamente.")
+            st.info("ℹ️ No hay suficientes datos para mostrar el boxplot (se necesitan al menos 2 clientes que esperaron por operación).")
     else:
         st.info("✅ Ningún cliente esperó en fila. Todos fueron atendidos inmediatamente.")
+    
     plt.close(fig_espera)
 
     # ── Registro Detallado ─────────────────────────────────────────────────
@@ -562,8 +566,7 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
                     facecolor='white', transparent=False)
         plt.close(fig_mon)
 
-    # Mostrar en Streamlit
-    st.markdown("##### Distribución de Servicios y Tiempos de Ocio")
+    # Mostrar en Streamlit    st.markdown("##### Distribución de Servicios y Tiempos de Ocio")
     st.image("graficas_pasteles.jpg", use_container_width=True)
     if cajeros <= 6 and os.path.exists("graficas_monitoreo.jpg"):
         st.markdown("##### Monitoreo en Tiempo Real")
