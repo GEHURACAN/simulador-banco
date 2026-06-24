@@ -289,7 +289,7 @@ def crear_pdf(
     pdf.output("Reporte_Simulacion.pdf")
 
 # ==========================================
-# 4. INTERFAZ STREAMLIT (VERSIÓN CORREGIDA)
+# 4. INTERFAZ STREAMLIT (VERSIÓN DEFINITIVA)
 # ==========================================
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
@@ -305,52 +305,53 @@ clientes = st.sidebar.number_input(
     value=100
 )
 
-# ── Número de cajeros (VERSIÓN CORREGIDA) ──────────────────────────
+# ── Número de cajeros (VERSIÓN DEFINITIVA) ──────────────────────────
 st.sidebar.markdown("**Número de cajeros activos:**")
 
 # Inicializar valor por defecto
-if 'cajeros_temp' not in st.session_state:
-    st.session_state.cajeros_temp = 6
+if 'cajeros_valor' not in st.session_state:
+    st.session_state.cajeros_valor = 6
 
-# Mostrar el number_input con el valor temporal
+# Mostrar el number_input con el valor de session_state
 cajeros = st.sidebar.number_input(
     "Número de cajeros activos:", 
     min_value=1, 
     max_value=500, 
-    value=st.session_state.cajeros_temp,
+    value=st.session_state.cajeros_valor,
     key="cajeros_input"
 )
 
-# Actualizar el valor temporal cuando el usuario cambia el number_input
-if cajeros != st.session_state.cajeros_temp:
-    st.session_state.cajeros_temp = cajeros
+# Actualizar session_state cuando el usuario cambia el valor manualmente
+if cajeros != st.session_state.cajeros_valor:
+    st.session_state.cajeros_valor = cajeros
 
-# ── BOTÓN DE SUGERENCIA (AGREGADO) ─────────────────────────────────
+# ── BOTONES DE SUGERENCIA ────────────────────────────────────────────
 st.sidebar.markdown("---")
 st.sidebar.markdown("**💡 Sugerencias de configuración:**")
 
-# Crear un contenedor para los botones de sugerencia
+# Crear columnas para los botones
 col_sug1, col_sug2, col_sug3, col_sug4 = st.sidebar.columns(4)
 
-def set_cajeros(valor):
-    st.session_state.cajeros_temp = valor
+# Función para actualizar el valor y recargar
+def actualizar_cajeros(valor):
+    st.session_state.cajeros_valor = valor
     st.rerun()
 
 with col_sug1:
     if st.button("⚠️ 3", key="sug_3", use_container_width=True):
-        set_cajeros(3)
+        actualizar_cajeros(3)
 
 with col_sug2:
     if st.button("✅ 4", key="sug_4", use_container_width=True):
-        set_cajeros(4)
+        actualizar_cajeros(4)
 
 with col_sug3:
     if st.button("👍 5", key="sug_5", use_container_width=True):
-        set_cajeros(5)
+        actualizar_cajeros(5)
 
 with col_sug4:
     if st.button("📊 6", key="sug_6", use_container_width=True):
-        set_cajeros(6)
+        actualizar_cajeros(6)
 
 # Mostrar leyenda
 st.sidebar.caption("3: Espera moderada | 4: Punto óptimo | 5: Poca espera | 6: Sin espera")
