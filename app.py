@@ -289,7 +289,7 @@ def crear_pdf(
     pdf.output("Reporte_Simulacion.pdf")
 
 # ==========================================
-# 4. INTERFAZ STREAMLIT
+# 4. INTERFAZ STREAMLIT (CORREGIDA)
 # ==========================================
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
@@ -307,11 +307,16 @@ clientes = st.sidebar.number_input(
 
 # ── Número de cajeros (DISEÑO ORIGINAL SIN MODIFICAR) ─────────────
 st.sidebar.markdown("**Número de cajeros activos:**")
+
+# Inicializar valor por defecto en session_state
+if 'cajeros_original' not in st.session_state:
+    st.session_state.cajeros_original = 6
+
 cajeros = st.sidebar.number_input(
     "Número de cajeros activos:", 
     min_value=1, 
     max_value=500, 
-    value=6,
+    value=st.session_state.cajeros_original,
     key="cajeros_original"
 )
 
