@@ -38,7 +38,7 @@ st.set_page_config(
 # ==========================================
 PROB_RETIRO = 0.50
 PROB_TRANSFERENCIA = 0.20
-MEDIA_LLEGADA_ALTA = 1.0
+MEDIA_LLEGADA_ALTA = 1.5  # Cambiado a 1.5 como recomendaste
 MEDIA_LLEGADA_BAJA = 20.0
 TIEMPO_SERVICIO_MIN = 1.0
 TIEMPO_SERVICIO_MAX = 2.0
@@ -331,11 +331,80 @@ st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
 
 st.sidebar.header("⚙️ Parámetros de Control")
-clientes = st.sidebar.number_input("Número de clientes a simular:", min_value=1, max_value=5000, value=100)
-cajeros = st.sidebar.number_input("Número de cajeros activos:", min_value=1, max_value=500, value=6)
-escenario = st.sidebar.selectbox("Escenario de Demanda:", [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)])
-hora_apertura = st.sidebar.time_input("Hora de apertura:", value=pd.Timestamp('09:00:00').time())
+st.sidebar.info(f"📊 Media de llegadas (Alta demanda): {MEDIA_LLEGADA_ALTA} min")
 
+# ── Número de clientes ──────────────────────────────────────────────
+clientes = st.sidebar.number_input(
+    "Número de clientes a simular:", 
+    min_value=1, 
+    max_value=5000, 
+    value=100
+)
+
+# ── Número de cajeros (VERSIÓN ELEGANTE CON OPCIONES RECOMENDADAS) ──
+st.sidebar.markdown("**Número de cajeros activos:**")
+
+# Crear columnas para el selector
+col1, col2, col3 = st.sidebar.columns([1, 2, 1])
+
+with col1:
+    if st.button("➖", key="menos_cajeros", use_container_width=True):
+        if 'cajeros_temp' not in st.session_state:
+            st.session_state.cajeros_temp = 4
+        # Disminuir entre las opciones: 6→5→4→3
+        opciones = [3, 4, 5, 6]
+        idx = opciones.index(st.session_state.cajeros_temp) if st.session_state.cajeros_temp in opciones else 0
+        st.session_state.cajeros_temp = opciones[max(0, idx - 1)]
+
+with col2:
+    # Opciones recomendadas
+    opciones_cajeros = [3, 4, 5, 6]
+    etiquetas_cajeros = {
+        3: "⚠️ 3 - Espera moderada",
+        4: "✅ 4 - Punto óptimo",
+        5: "👍 5 - Poca espera",
+        6: "📊 6 - Sin espera"
+    }
+    
+    if 'cajeros_temp' not in st.session_state:
+        st.session_state.cajeros_temp = 4
+    
+    cajeros_seleccionado = st.selectbox(
+        "Seleccionar:",
+        options=opciones_cajeros,
+        index=opciones_cajeros.index(st.session_state.cajeros_temp) if st.session_state.cajeros_temp in opciones_cajeros else 1,
+        format_func=lambda x: etiquetas_cajeros.get(x, f"{x} cajeros"),
+        key="select_cajeros",
+        label_visibility="collapsed"
+    )
+    st.session_state.cajeros_temp = cajeros_seleccionado
+
+with col3:
+    if st.button("➕", key="mas_cajeros", use_container_width=True):
+        if 'cajeros_temp' not in st.session_state:
+            st.session_state.cajeros_temp = 4
+        # Aumentar entre las opciones: 3→4→5→6
+        opciones = [3, 4, 5, 6]
+        idx = opciones.index(st.session_state.cajeros_temp) if st.session_state.cajeros_temp in opciones else 0
+        st.session_state.cajeros_temp = opciones[min(3, idx + 1)]
+
+# Asignar el valor seleccionado
+cajeros = st.session_state.cajeros_temp
+st.sidebar.markdown(f"**✅ Cajeros seleccionados: {cajeros}**")
+
+# ── Escenario de Demanda ────────────────────────────────────────────
+escenario = st.sidebar.selectbox(
+    "Escenario de Demanda:", 
+    [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)]
+)
+
+# ── Hora de apertura ────────────────────────────────────────────────
+hora_apertura = st.sidebar.time_input(
+    "Hora de apertura:", 
+    value=pd.Timestamp('09:00:00').time()
+)
+
+# ── Botón Ejecutar ──────────────────────────────────────────────────
 if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     
     # Limpiar imágenes anteriores
