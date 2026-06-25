@@ -14,7 +14,6 @@ from fpdf import FPDF
 import os
 import warnings
 from typing import Tuple, List
-import functools
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -52,8 +51,8 @@ PRECISION_NUMERICA = 1e-9
 # 1. LÓGICA DE SIMULACIÓN
 # ==========================================
 def simular_banco_multicajero(
-    num_clientes: int, 
-    num_cajeros: int, 
+    num_clientes: int,
+    num_cajeros: int,
     modo_demanda: int,
     progress_callback=None
 ) -> Tuple[pd.DataFrame, List[float]]:
@@ -62,10 +61,10 @@ def simular_banco_multicajero(
     h_llegada_ant = 0
     tiempos_libres_cajeros = [0.0] * num_cajeros
     ocio_acumulado_cajeros = [0.0] * num_cajeros
-    
-    llegadas_ri = np.random.rand(num_clientes)
+
+    llegadas_ri  = np.random.rand(num_clientes)
     operacion_ri = np.random.rand(num_clientes)
-    servicio_ri = np.random.rand(num_clientes)
+    servicio_ri  = np.random.rand(num_clientes)
 
     for i in range(1, num_clientes + 1):
         t_entre_llegadas = -media_llegada * np.log(llegadas_ri[i-1])
@@ -94,7 +93,7 @@ def simular_banco_multicajero(
             t_servicio = norm.ppf(ri_servicio, loc=DEPOSITO_MEDIA, scale=DEPOSITO_DESVIACION)
             t_servicio = max(DEPOSITO_MIN, min(DEPOSITO_MAX, t_servicio))
 
-        h_salida = h_inicio + t_servicio
+        h_salida  = h_inicio + t_servicio
         t_sistema = h_salida - h_llegada
         tiempos_libres_cajeros[id_cajero] = h_salida
 
@@ -103,46 +102,46 @@ def simular_banco_multicajero(
             operacion, t_servicio, h_salida, t_sistema
         ])
         h_llegada_ant = h_llegada
-        
+
         if progress_callback and i % 100 == 0:
             progress_callback(i / num_clientes)
 
     columnas = ["Cliente", "Cajero", "T.Entre", "H.Llegada", "H.Inicio",
                 "Operación", "T.Servicio", "H.Salida", "T.Sistema"]
     df = pd.DataFrame(datos, columns=columnas)
-    
+
     espera_calculada = (df['H.Inicio'] - df['H.Llegada']).round(6)
     df.insert(5, 'Esperó_Fila', np.where(espera_calculada > PRECISION_NUMERICA, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
-    
+
     return df, ocio_acumulado_cajeros
 
 # ==========================================
 # 2. ANÁLISIS PROFESIONAL
 # ==========================================
 def generar_analisis_dinamico(
-    df: pd.DataFrame, 
-    ocio_list: List[float], 
-    num_cajeros: int, 
+    df: pd.DataFrame,
+    ocio_list: List[float],
+    num_cajeros: int,
     num_clientes: int
 ) -> str:
     t_final = df['H.Salida'].max()
     prom_ocio = sum(ocio_list) / num_cajeros
     pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100 if t_final > 0 else 0
-    
-    clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
-    porcentaje_espera = (clientes_esperaron / len(df)) * 100
-    espera_promedio = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
-    espera_maxima = df['T.Espera'].max()
 
-    servicios = df.groupby("Operación")["T.Servicio"].sum()
-    total_serv = servicios.sum()
+    clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
+    porcentaje_espera  = (clientes_esperaron / len(df)) * 100
+    espera_promedio    = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
+    espera_maxima      = df['T.Espera'].max()
+
+    servicios    = df.groupby("Operación")["T.Servicio"].sum()
+    total_serv   = servicios.sum()
     pct_deposito = (servicios.get("Depósito", 0) / total_serv) * 100 if total_serv > 0 else 0
 
     tasa_utilizacion = (1 - (prom_ocio / t_final)) * 100 if t_final > 0 else 0
 
-    analisis = "ANÁLISIS OPERATIVO Y RECOMENDACIONES:\n\n"
-    
+    analisis  = "ANÁLISIS OPERATIVO Y RECOMENDACIONES:\n\n"
+
     analisis += "1. Distribución del Trabajo:\n"
     if pct_deposito > 40:
         analisis += f"   - Se detecta que los Depósitos consumen una gran parte del tiempo operativo ({pct_deposito:.1f}%). "
@@ -173,19 +172,19 @@ def generar_analisis_dinamico(
         analisis += f"   - Tiempo promedio de espera en fila: {espera_promedio:.2f} minutos\n"
         analisis += f"   - Tiempo máximo de espera en fila: {espera_maxima:.2f} minutos\n"
         if espera_promedio > 1.0:
-            analisis += "   - ⚠️ El tiempo de espera en fila supera 1 minuto. Considerar abrir más cajeros en horas pico.\n"
+            analisis += "   - El tiempo de espera en fila supera 1 minuto. Considerar abrir más cajeros en horas pico.\n"
     else:
-        analisis += "   - ✅ ¡Excelente! Ningún cliente esperó en fila. El sistema tiene capacidad suficiente.\n"
+        analisis += "   - Ningún cliente esperó en fila. El sistema tiene capacidad suficiente.\n"
     analisis += "\n"
 
     analisis += "5. Eficiencia del Sistema:\n"
     analisis += f"   - Tasa de utilización de cajeros: {tasa_utilizacion:.1f}%\n"
     if tasa_utilizacion > 85:
-        analisis += "   - ⚠️ Alta utilización. El sistema opera cerca de su capacidad máxima.\n"
+        analisis += "   - Alta utilización. El sistema opera cerca de su capacidad máxima.\n"
     elif tasa_utilizacion < 40:
-        analisis += "   - 📉 Baja utilización. El sistema está subutilizado.\n"
+        analisis += "   - Baja utilización. El sistema está subutilizado.\n"
     else:
-        analisis += "   - ✅ Nivel de utilización óptimo para operaciones bancarias.\n"
+        analisis += "   - Nivel de utilización óptimo para operaciones bancarias.\n"
 
     return analisis
 
@@ -218,23 +217,16 @@ class PDFReport(FPDF):
         self.set_text_color(60, 60, 60)
 
 
-def crear_pdf(
-    df: pd.DataFrame, 
-    analisis: str, 
-    prom_ocio: float, 
-    pct_tiempo_sistema: float, 
-    conteo_cajeros: pd.Series
-):
+def crear_pdf(df, analisis, prom_ocio, pct_tiempo_sistema, conteo_cajeros):
     pdf = PDFReport()
     pdf.add_page()
     pdf.set_y(30)
 
-    pdf.seccion_titulo("Resumen General Operativo")
-
     clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
-    porcentaje_espera = (clientes_esperaron / len(df)) * 100
-    espera_promedio = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
+    porcentaje_espera  = (clientes_esperaron / len(df)) * 100
+    espera_promedio    = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
 
+    pdf.seccion_titulo("Resumen General Operativo")
     pdf.set_font("Arial", 'B', 10)
     pdf.set_text_color(60, 60, 60)
     pdf.cell(0, 6, txt="Carga de trabajo por cajero (Muestra):", ln=True)
@@ -289,154 +281,68 @@ def crear_pdf(
     pdf.output("Reporte_Simulacion.pdf")
 
 # ==========================================
-# 4. INTERFAZ STREAMLIT (VERSIÓN DEFINITIVA)
+# 4. FUNCIÓN EJECUTAR SIMULACIÓN
 # ==========================================
-st.title("🏦 Sistema Bancario Multicajero")
-st.markdown("---")
+def ejecutar_simulacion(clientes, cajeros, escenario, hora_apertura):
 
-st.sidebar.header("⚙️ Parámetros de Control")
-st.sidebar.info(f"📊 Media de llegadas (Alta demanda): {MEDIA_LLEGADA_ALTA} min")
-
-# ── Número de clientes ──────────────────────────────────────────────
-clientes = st.sidebar.number_input(
-    "Número de clientes a simular:", 
-    min_value=1, 
-    max_value=5000, 
-    value=100
-)
-
-# ── Número de cajeros (VERSIÓN DEFINITIVA) ──────────────────────────
-st.sidebar.markdown("**Número de cajeros activos:**")
-
-# Inicializar valor por defecto
-if 'cajeros_valor' not in st.session_state:
-    st.session_state.cajeros_valor = 6
-
-# Mostrar el number_input con el valor de session_state
-cajeros = st.sidebar.number_input(
-    "Número de cajeros activos:", 
-    min_value=1, 
-    max_value=500, 
-    value=st.session_state.cajeros_valor,
-    key="cajeros_input"
-)
-
-# Actualizar session_state cuando el usuario cambia el valor manualmente
-if cajeros != st.session_state.cajeros_valor:
-    st.session_state.cajeros_valor = cajeros
-
-# ── BOTONES DE SUGERENCIA ────────────────────────────────────────────
-st.sidebar.markdown("---")
-st.sidebar.markdown("**💡 Sugerencias de configuración:**")
-
-# Crear columnas para los botones
-col_sug1, col_sug2, col_sug3, col_sug4 = st.sidebar.columns(4)
-
-# Función para actualizar el valor y recargar
-def actualizar_cajeros(valor):
-    st.session_state.cajeros_valor = valor
-    st.rerun()
-
-with col_sug1:
-    if st.button("⚠️ 3", key="sug_3", use_container_width=True):
-        actualizar_cajeros(3)
-
-with col_sug2:
-    if st.button("✅ 4", key="sug_4", use_container_width=True):
-        actualizar_cajeros(4)
-
-with col_sug3:
-    if st.button("👍 5", key="sug_5", use_container_width=True):
-        actualizar_cajeros(5)
-
-with col_sug4:
-    if st.button("📊 6", key="sug_6", use_container_width=True):
-        actualizar_cajeros(6)
-
-# Mostrar leyenda
-st.sidebar.caption("3: Espera moderada | 4: Punto óptimo | 5: Poca espera | 6: Sin espera")
-
-# ── Escenario de Demanda ────────────────────────────────────────────
-escenario = st.sidebar.selectbox(
-    "Escenario de Demanda:", 
-    [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)]
-)
-
-# ── Hora de apertura ────────────────────────────────────────────────
-hora_apertura = st.sidebar.time_input(
-    "Hora de apertura:", 
-    value=pd.Timestamp('09:00:00').time()
-)
-
-# ── Botón Ejecutar ──────────────────────────────────────────────────
-if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
-    
-    # Limpiar imágenes anteriores
     for archivo in ["graficas_pasteles.jpg", "graficas_monitoreo.jpg", "grafica_fila_pdf.jpg"]:
         if os.path.exists(archivo):
             os.remove(archivo)
-    
-    # Ejecutar simulación con barra de progreso
+
     if clientes > 500:
         progress_bar = st.progress(0)
-        status_text = st.empty()
-        
+        status_text  = st.empty()
         def update_progress(progress):
             progress_bar.progress(progress)
             status_text.text(f"Simulando cliente {int(progress * clientes)} de {clientes}...")
-        
         df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1], update_progress)
         progress_bar.empty()
         status_text.empty()
     else:
         df, ocio_list = simular_banco_multicajero(clientes, cajeros, escenario[1])
 
-    # Calcular métricas
-    t_final = df['H.Salida'].max()
+    t_final            = df['H.Salida'].max()
     pct_tiempo_sistema = (df['T.Sistema'].mean() / t_final) * 100 if t_final > 0 else 0
-    prom_ocio = sum(ocio_list) / cajeros
-    conteo_cajeros = df['Cajero'].value_counts().sort_index()
-    analisis_texto = generar_analisis_dinamico(df, ocio_list, cajeros, clientes)
-    
-    # Métricas adicionales
-    clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
-    porcentaje_espera = (clientes_esperaron / len(df)) * 100
-    espera_promedio = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
-    tasa_utilizacion = (1 - (prom_ocio / t_final)) * 100 if t_final > 0 else 0
+    prom_ocio          = sum(ocio_list) / cajeros
+    conteo_cajeros     = df['Cajero'].value_counts().sort_index()
+    analisis_texto     = generar_analisis_dinamico(df, ocio_list, cajeros, clientes)
 
-    st.session_state['df'] = df
-    st.session_state['analisis'] = analisis_texto
-    st.session_state['prom_ocio'] = prom_ocio
+    clientes_esperaron = (df['Esperó_Fila'] == 'Sí').sum()
+    porcentaje_espera  = (clientes_esperaron / len(df)) * 100
+    espera_promedio    = df[df['Esperó_Fila'] == 'Sí']['T.Espera'].mean() if clientes_esperaron > 0 else 0
+    tasa_utilizacion   = (1 - (prom_ocio / t_final)) * 100 if t_final > 0 else 0
+
+    st.session_state['df']                 = df
+    st.session_state['analisis']           = analisis_texto
+    st.session_state['prom_ocio']          = prom_ocio
     st.session_state['pct_tiempo_sistema'] = pct_tiempo_sistema
-    st.session_state['conteo'] = conteo_cajeros
+    st.session_state['conteo']             = conteo_cajeros
+    st.session_state['cajeros_actuales']   = cajeros
+    st.session_state['hora_apertura']      = hora_apertura
 
     # ── KPIs ────────────────────────────────────────────────────────────────
-    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
-    with col_kpi1:
-        st.metric(label="👥 Clientes Atendidos", value=f"{clientes}")
-    with col_kpi2:
-        st.metric(label="⏱️ Tiempo Promedio en Sistema", value=f"{pct_tiempo_sistema:.2f}%")
-    with col_kpi3:
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1: st.metric("👥 Clientes Atendidos", f"{clientes}")
+    with col2: st.metric("⏱️ Tiempo Prom. en Sistema", f"{pct_tiempo_sistema:.2f}%")
+    with col3:
         if prom_ocio > 59:
-            st.metric(label="🕐 Ocio Promedio", value=f"{(prom_ocio/60):.2f} hrs")
+            st.metric("🕐 Ocio Promedio", f"{(prom_ocio/60):.2f} hrs")
         else:
-            st.metric(label="🕐 Ocio Promedio", value=f"{prom_ocio:.4f} min")
-    with col_kpi4:
-        st.metric(label="📊 Utilización", value=f"{tasa_utilizacion:.1f}%")
-    with col_kpi5:
-        st.metric(label="⏳ % Clientes que Esperaron", value=f"{porcentaje_espera:.1f}%")
+            st.metric("🕐 Ocio Promedio", f"{prom_ocio:.4f} min")
+    with col4: st.metric("📊 Utilización", f"{tasa_utilizacion:.1f}%")
+    with col5: st.metric("⏳ % Clientes que Esperaron", f"{porcentaje_espera:.1f}%")
 
-    # ── Tabla resumen por operación ──────────────────────────────────────
+    # ── Resumen por operación ────────────────────────────────────────────────
     st.subheader("📊 Resumen por Tipo de Operación")
-    resumen_operaciones = df.groupby('Operación').agg({
+    resumen = df.groupby('Operación').agg({
         'Cliente': 'count',
         'T.Servicio': ['mean', 'std', 'sum'],
         'T.Espera': 'mean'
     }).round(2)
-    resumen_operaciones.columns = ['Cantidad', 'Servicio Promedio', 'Desv. Servicio', 'Total Servicio', 'Espera Promedio']
-    st.dataframe(resumen_operaciones, use_container_width=True)
+    resumen.columns = ['Cantidad', 'Servicio Promedio', 'Desv. Servicio', 'Total Servicio', 'Espera Promedio']
+    st.dataframe(resumen, use_container_width=True)
 
-    # ── Registro Detallado ─────────────────────────────────────────────────
+    # ── Registro detallado ───────────────────────────────────────────────────
     st.subheader("📋 Registro Operativo Detallado")
     if len(df) > 100:
         st.warning(f"Mostrando primeros 100 de {len(df)} registros")
@@ -444,146 +350,205 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     else:
         st.dataframe(df.round(3), use_container_width=True)
 
-    # ── Análisis ────────────────────────────────────────────────────────────
+    # ── Análisis ─────────────────────────────────────────────────────────────
     st.subheader("📝 Evaluación del Sistema y Diagnóstico")
     st.info(analisis_texto)
 
-    # ── Visualizaciones ────────────────────────────────────────────────────
+    # ── Visualizaciones ──────────────────────────────────────────────────────
     st.subheader("📊 Visualización de Datos")
-
     mapa_colores = {"Depósito": '#f39c12', "Retiro": '#3498db', "Transferencia": '#e74c3c'}
 
-    # ── Figura A: Pasteles ────────────────────────────────────────────────
-    fig_pasteles, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
-    fig_pasteles.patch.set_facecolor('white')
-    fig_pasteles.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold')
+    # Figura A: Pasteles
+    fig_p, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+    fig_p.patch.set_facecolor('white')
+    fig_p.suptitle("Dashboard Bancario", fontsize=18, fontweight='bold')
 
-    servicios_agrupados = df.groupby("Operación")["T.Servicio"].sum()
-    mapa_etiquetas_serv = {"Depósito": "Depósitos", "Retiro": "Retiros", "Transferencia": "Transferencias"}
-    etiquetas_serv = [mapa_etiquetas_serv.get(op, op) for op in servicios_agrupados.index]
-    colores_serv = [mapa_colores.get(op, '#000000') for op in servicios_agrupados.index]
-    ax1.pie(servicios_agrupados, labels=etiquetas_serv, autopct='%1.1f%%',
-            startangle=140, colors=colores_serv,
-            wedgeprops={'edgecolor': 'grey', 'linewidth': 1.5})
+    svc = df.groupby("Operación")["T.Servicio"].sum()
+    lbl_svc = [{"Depósito":"Depósitos","Retiro":"Retiros","Transferencia":"Transferencias"}.get(op,op) for op in svc.index]
+    col_svc = [mapa_colores.get(op,'#000000') for op in svc.index]
+    ax1.pie(svc, labels=lbl_svc, autopct='%1.1f%%', startangle=140, colors=col_svc,
+            wedgeprops={'edgecolor':'grey','linewidth':1.5})
     ax1.set_title("Distribución de Tiempo de Servicio", fontweight='bold')
 
     try:
-        ocio_series = pd.Series(ocio_list)
-        if ocio_series.max() == 0 or ocio_series.max() == ocio_series.min():
-            val_unico = ocio_series.max()
-            etiqueta = f"{(val_unico/60):.2f} HRS" if val_unico > 59 else f"{val_unico:.2f} min"
-            conteo_ocio = pd.Series({etiqueta: len(ocio_series)})
-            labels_ocio = conteo_ocio.index
+        ocio_s = pd.Series(ocio_list)
+        if ocio_s.max() == 0 or ocio_s.max() == ocio_s.min():
+            val = ocio_s.max()
+            etq = f"{(val/60):.2f} HRS" if val > 59 else f"{val:.2f} min"
+            conteo_ocio = pd.Series({etq: len(ocio_s)})
+            lbl_ocio = conteo_ocio.index
         else:
-            bins = pd.cut(ocio_series, bins=4)
+            bins = pd.cut(ocio_s, bins=4)
             conteo_ocio = bins.value_counts().sort_index()
             conteo_ocio = conteo_ocio[conteo_ocio > 0]
-            labels_ocio = []
+            lbl_ocio = []
             for b in conteo_ocio.index:
                 li, ls = max(0, b.left), b.right
-                if ls > 59:
-                    labels_ocio.append(f"De {(li/60):.2f} a {(ls/60):.2f} hrs")
-                else:
-                    labels_ocio.append(f"De {li:.2f} a {ls:.2f} min")
-
-        colores_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
-        ax2.pie(conteo_ocio.values, labels=labels_ocio, autopct='%1.1f%%',
-                startangle=140, colors=colores_ocio,
-                wedgeprops={'edgecolor': 'gray'})
+                lbl_ocio.append(f"De {(li/60):.2f} a {(ls/60):.2f} hrs" if ls > 59
+                                else f"De {li:.2f} a {ls:.2f} min")
+        col_ocio = plt.cm.Pastel1(np.linspace(0, 1, len(conteo_ocio)))
+        ax2.pie(conteo_ocio.values, labels=lbl_ocio, autopct='%1.1f%%', startangle=140,
+                colors=col_ocio, wedgeprops={'edgecolor':'gray'})
         ax2.set_title("Distribución de Tiempo de Ocio (Por Rangos)", fontweight="bold")
     except Exception as e:
         st.error(f"⚠️ Error en pastel de ocio: {e}")
 
     plt.tight_layout()
-    plt.savefig("graficas_pasteles.jpg", bbox_inches='tight', dpi=120,
-                facecolor='white', transparent=False)
-    plt.close(fig_pasteles)
+    plt.savefig("graficas_pasteles.jpg", bbox_inches='tight', dpi=120, facecolor='white')
+    plt.close(fig_p)
 
-    # ── Figura B: Monitoreo ───────────────────────────────────────────────
+    # Figura B: Monitoreo
     if cajeros <= 6:
         if clientes <= 10:
-            fig_mon, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 5))
-            fig_mon.patch.set_facecolor('white')
-
+            fig_m, (ax3, ax4) = plt.subplots(1, 2, figsize=(16, 5))
+            fig_m.patch.set_facecolor('white')
             ax3.set_title("Diagrama de Gantt - Monitoreo de Operaciones", fontweight='bold')
-            for idx, row in df.iterrows():
+            for _, row in df.iterrows():
                 ax3.barh(row['Cajero'], row['T.Servicio'], left=row['H.Inicio'],
-                         color=mapa_colores.get(row['Operación'], '#000000'),
+                         color=mapa_colores.get(row['Operación'],'#000000'),
                          edgecolor='grey', height=0.6)
-            ax3.set_yticks(range(1, cajeros + 1))
-            ax3.set_yticklabels([f"Cajero {i}" for i in range(1, cajeros + 1)], fontsize=9)
-            handles = [mpatches.Patch(color=mapa_colores[k], label=k) for k in mapa_colores]
-            ax3.legend(handles=handles, loc='lower right')
+            ax3.set_yticks(range(1, cajeros+1))
+            ax3.set_yticklabels([f"Cajero {i}" for i in range(1, cajeros+1)], fontsize=9)
+            ax3.legend(handles=[mpatches.Patch(color=mapa_colores[k], label=k) for k in mapa_colores], loc='lower right')
             ax3.grid(axis='x', linestyle='--', alpha=0.5)
-
-            ax4.set_title("Distribución del Tiempo Total en Sistema", fontweight='bold')
-            ax4.hist(df['T.Sistema'], bins=12, color="#3498db", edgecolor='white', alpha=0.85)
-            ax4.axvline(df['T.Sistema'].mean(), color='red', linestyle='dashed', linewidth=2,
-                        label=f"Media: {df['T.Sistema'].mean():.2f} min")
-            ax4.legend()
-            ax4.grid(axis='y', linestyle='--', alpha=0.5)
-
         else:
-            fig_mon, ax4 = plt.subplots(1, 1, figsize=(16, 5))
-            fig_mon.patch.set_facecolor('white')
+            fig_m, ax4 = plt.subplots(1, 1, figsize=(16, 5))
+            fig_m.patch.set_facecolor('white')
 
-            ax4.set_title("Distribución del Tiempo Total en Sistema", fontweight='bold')
-            ax4.hist(df['T.Sistema'], bins=12, color="#3498db", edgecolor='white', alpha=0.85)
-            ax4.axvline(df['T.Sistema'].mean(), color='red', linestyle='dashed', linewidth=2,
-                        label=f"Media: {df['T.Sistema'].mean():.2f} min")
-            ax4.legend()
-            ax4.grid(axis='y', linestyle='--', alpha=0.5)
+        ax4.set_title("Distribución del Tiempo Total en Sistema", fontweight='bold')
+        ax4.hist(df['T.Sistema'], bins=12, color="#3498db", edgecolor='white', alpha=0.85)
+        ax4.axvline(df['T.Sistema'].mean(), color='red', linestyle='dashed', linewidth=2,
+                    label=f"Media: {df['T.Sistema'].mean():.2f} min")
+        ax4.legend()
+        ax4.grid(axis='y', linestyle='--', alpha=0.5)
 
         plt.tight_layout()
-        plt.savefig("graficas_monitoreo.jpg", bbox_inches='tight', dpi=120,
-                    facecolor='white', transparent=False)
-        plt.close(fig_mon)
+        plt.savefig("graficas_monitoreo.jpg", bbox_inches='tight', dpi=120, facecolor='white')
+        plt.close(fig_m)
 
-    # Mostrar en Streamlit
     st.markdown("##### Distribución de Servicios y Tiempos de Ocio")
     st.image("graficas_pasteles.jpg", use_container_width=True)
     if cajeros <= 6 and os.path.exists("graficas_monitoreo.jpg"):
         st.markdown("##### Monitoreo en Tiempo Real")
         st.image("graficas_monitoreo.jpg", use_container_width=True)
 
-    # ── Gráfica de fila ────────────────────────────────────────────────────
-    fig_pdf, ax_pdf = plt.subplots(figsize=(10, 2.8))
-    ax_pdf.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
-    ax_pdf.set_title("Distribución de Tiempos de Espera en Fila",
-                     fontweight='bold', fontsize=11)
-    ax_pdf.set_xlabel("Tiempo de espera (minutos)", fontsize=9)
-    ax_pdf.set_ylabel("Cantidad de Clientes", fontsize=9)
-    ax_pdf.tick_params(axis='both', which='major', labelsize=9)
-    ax_pdf.grid(axis='y', linestyle='--', alpha=0.5)
+    # Gráfica de fila PDF
+    fig_f, ax_f = plt.subplots(figsize=(10, 2.8))
+    ax_f.hist(df['T.Espera'], bins=10, color="#2ecc71", edgecolor='black', alpha=0.8)
+    ax_f.set_title("Distribución de Tiempos de Espera en Fila", fontweight='bold', fontsize=11)
+    ax_f.set_xlabel("Tiempo de espera (minutos)", fontsize=9)
+    ax_f.set_ylabel("Cantidad de Clientes", fontsize=9)
+    ax_f.tick_params(axis='both', which='major', labelsize=9)
+    ax_f.grid(axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.savefig("grafica_fila_pdf.jpg", bbox_inches='tight', dpi=130, facecolor='white')
-    plt.close(fig_pdf)
+    plt.close(fig_f)
 
-    # ── Gráfica de evolución de la fila ──────────────────────────────────
+    # Gráfica evolución de fila
     st.markdown("##### Evolución de la Fila en el Tiempo")
-    fig_fila, ax_fila = plt.subplots(figsize=(10, 4))
-    df_ordenado = df.sort_values('H.Llegada')
-    df_ordenado['Clientes_Acumulados'] = range(1, len(df_ordenado) + 1)
-    df_ordenado['Clientes_Atendidos'] = df_ordenado['H.Salida'].rank()
-    
-    ax_fila.plot(df_ordenado['H.Llegada'], df_ordenado['Clientes_Acumulados'], 
-                 label='Clientes Llegados', color='blue', linewidth=2)
-    ax_fila.plot(df_ordenado['H.Salida'], df_ordenado['Clientes_Atendidos'], 
-                 label='Clientes Atendidos', color='green', linewidth=2)
-    ax_fila.fill_between(df_ordenado['H.Llegada'], 
-                         df_ordenado['Clientes_Acumulados'], 
-                         df_ordenado['Clientes_Atendidos'], 
-                         alpha=0.3, color='orange', label='Clientes en Fila')
-    ax_fila.set_xlabel('Tiempo (minutos)', fontsize=10)
-    ax_fila.set_ylabel('Número de Clientes', fontsize=10)
-    ax_fila.legend()
-    ax_fila.grid(True, linestyle='--', alpha=0.3)
+    fig_ev, ax_ev = plt.subplots(figsize=(10, 4))
+    df_ord = df.sort_values('H.Llegada')
+    df_ord['Clientes_Acumulados'] = range(1, len(df_ord)+1)
+    df_ord['Clientes_Atendidos']  = df_ord['H.Salida'].rank()
+    ax_ev.plot(df_ord['H.Llegada'], df_ord['Clientes_Acumulados'],
+               label='Clientes Llegados', color='blue', linewidth=2)
+    ax_ev.plot(df_ord['H.Salida'], df_ord['Clientes_Atendidos'],
+               label='Clientes Atendidos', color='green', linewidth=2)
+    ax_ev.fill_between(df_ord['H.Llegada'], df_ord['Clientes_Acumulados'],
+                       df_ord['Clientes_Atendidos'], alpha=0.3, color='orange', label='Clientes en Fila')
+    ax_ev.set_xlabel('Tiempo (minutos)', fontsize=10)
+    ax_ev.set_ylabel('Número de Clientes', fontsize=10)
+    ax_ev.legend()
+    ax_ev.grid(True, linestyle='--', alpha=0.3)
     plt.tight_layout()
-    st.pyplot(fig_fila)
-    plt.close(fig_fila)
+    st.pyplot(fig_ev)
+    plt.close(fig_ev)
+
 
 # ==========================================
-# 5. EXPORTACIÓN MEJORADA
+# 5. INTERFAZ STREAMLIT
+# ==========================================
+st.title("🏦 Sistema Bancario Multicajero")
+st.markdown("---")
+
+st.sidebar.header("⚙️ Parámetros de Control")
+st.sidebar.info(f"📊 Media de llegadas (Alta demanda): {MEDIA_LLEGADA_ALTA} min")
+
+clientes = st.sidebar.number_input(
+    "Número de clientes a simular:",
+    min_value=1, max_value=5000, value=100
+)
+
+# ── Inicializar valor de cajeros ────────────────────────────────────────────
+if 'cajeros_valor' not in st.session_state:
+    st.session_state.cajeros_valor = 6
+
+cajeros = st.sidebar.number_input(
+    "Número de cajeros activos:",
+    min_value=1, max_value=500,
+    value=st.session_state.cajeros_valor,
+    key="cajeros_input"
+)
+if cajeros != st.session_state.cajeros_valor:
+    st.session_state.cajeros_valor = cajeros
+
+escenario = st.sidebar.selectbox(
+    "Escenario de Demanda:",
+    [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)]
+)
+
+hora_apertura = st.sidebar.time_input(
+    "Hora de apertura:",
+    value=pd.Timestamp('09:00:00').time()
+)
+
+# ── Botones de sugerencia ── al hacer clic simulan directamente ─────────────
+st.sidebar.markdown("---")
+st.sidebar.markdown("**💡 Sugerencias de configuración:**")
+
+SUGERENCIAS = [
+    ("⚠️ 3", 3, "Espera moderada"),
+    ("✅ 4", 4, "Punto óptimo"),
+    ("👍 5", 5, "Poca espera"),
+    ("📊 6", 6, "Sin espera"),
+]
+
+cols_sug = st.sidebar.columns(len(SUGERENCIAS))
+for col, (etiqueta, n_cajeros, _) in zip(cols_sug, SUGERENCIAS):
+    with col:
+        if st.button(etiqueta, key=f"sug_{n_cajeros}", use_container_width=True):
+            st.session_state.cajeros_valor = n_cajeros
+            st.session_state['trigger_sim'] = {
+                'clientes' : clientes,
+                'cajeros'  : n_cajeros,
+                'escenario': escenario,
+                'hora'     : hora_apertura,
+            }
+            st.rerun()
+
+st.sidebar.caption("  |  ".join([f"{n}: {desc}" for _, n, desc in SUGERENCIAS]))
+
+# ── Botón principal ────────────────────────────────────────────────────────
+if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
+    st.session_state['trigger_sim'] = {
+        'clientes' : clientes,
+        'cajeros'  : cajeros,
+        'escenario': escenario,
+        'hora'     : hora_apertura,
+    }
+
+# ── Ejecutar si hay trigger (botón principal o sugerencia) ─────────────────
+if 'trigger_sim' in st.session_state and st.session_state['trigger_sim']:
+    params = st.session_state.pop('trigger_sim')
+    ejecutar_simulacion(
+        params['clientes'],
+        params['cajeros'],
+        params['escenario'],
+        params['hora'],
+    )
+
+# ==========================================
+# 6. EXPORTACIÓN
 # ==========================================
 if 'df' in st.session_state:
     st.markdown("---")
@@ -592,81 +557,55 @@ if 'df' in st.session_state:
     col_btn1, col_btn2, col_btn3 = st.columns(3)
 
     with col_btn1:
-        df_export = st.session_state['df'].copy()
-        df_export['Eficiencia_Atención_%'] = (
-            (df_export['T.Servicio'] /
-             (df_export['T.Espera'] + df_export['T.Servicio'])) * 100
+        df_exp = st.session_state['df'].copy()
+        df_exp['Eficiencia_Atención_%'] = (
+            (df_exp['T.Servicio'] / (df_exp['T.Espera'] + df_exp['T.Servicio'])) * 100
         ).round(2)
 
-        hora_apertura_dt = pd.to_datetime(f"2026-06-05 {hora_apertura.strftime('%H:%M:%S')}")
-        df_export['Hora_Llegada_Reloj'] = (hora_apertura_dt +
-            pd.to_timedelta(df_export['H.Llegada'], unit='m')).dt.strftime('%H:%M:%S')
-        df_export['Hora_Salida_Reloj'] = (hora_apertura_dt +
-            pd.to_timedelta(df_export['H.Salida'], unit='m')).dt.strftime('%H:%M:%S')
+        ha = st.session_state.get('hora_apertura', pd.Timestamp('09:00:00').time())
+        ha_dt = pd.to_datetime(f"2026-06-05 {ha.strftime('%H:%M:%S')}")
+        df_exp['Hora_Llegada_Reloj'] = (ha_dt + pd.to_timedelta(df_exp['H.Llegada'], unit='m')).dt.strftime('%H:%M:%S')
+        df_exp['Hora_Salida_Reloj']  = (ha_dt + pd.to_timedelta(df_exp['H.Salida'],  unit='m')).dt.strftime('%H:%M:%S')
 
-        cols_tiempo = ['T.Entre', 'H.Llegada', 'H.Inicio', 'T.Espera',
-                       'T.Servicio', 'H.Salida', 'T.Sistema']
-        df_export[cols_tiempo] = df_export[cols_tiempo].round(2)
+        for col in ['T.Entre','H.Llegada','H.Inicio','T.Espera','T.Servicio','H.Salida','T.Sistema']:
+            df_exp[col] = df_exp[col].round(2)
 
-        df_export = df_export.rename(columns={
-            'Cliente': 'ID_Cliente',
-            'Cajero': 'Num_Cajero_Asignado',
-            'T.Entre': 'Tiempo_Entre_Llegadas_min',
-            'H.Llegada': 'Cronómetro_Llegada',
-            'H.Inicio': 'Cronómetro_Atención',
-            'T.Espera': 'Minutos_Esperando_Fila',
-            'Operación': 'Tipo_Operación',
-            'T.Servicio': 'Tiempo_Transacción_min',
-            'H.Salida': 'Cronómetro_Salida',
-            'T.Sistema': 'Total_Tiempo_Sucursal_min'
+        df_exp = df_exp.rename(columns={
+            'Cliente':'ID_Cliente', 'Cajero':'Num_Cajero_Asignado',
+            'T.Entre':'Tiempo_Entre_Llegadas_min', 'H.Llegada':'Cronómetro_Llegada',
+            'H.Inicio':'Cronómetro_Atención', 'T.Espera':'Minutos_Esperando_Fila',
+            'Operación':'Tipo_Operación', 'T.Servicio':'Tiempo_Transacción_min',
+            'H.Salida':'Cronómetro_Salida', 'T.Sistema':'Total_Tiempo_Sucursal_min'
         })
-
-        columnas_finales = [
-            'ID_Cliente', 'Hora_Llegada_Reloj', 'Hora_Salida_Reloj',
-            'Num_Cajero_Asignado', 'Esperó_Fila', 'Minutos_Esperando_Fila',
-            'Tipo_Operación', 'Tiempo_Transacción_min',
-            'Eficiencia_Atención_%', 'Total_Tiempo_Sucursal_min'
-        ]
-        df_export = df_export[columnas_finales]
-
-        csv_data = df_export.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-        st.download_button(
-            label="📊 Descargar CSV",
-            data=csv_data,
-            file_name="Resultados_Bancarios_Auditados.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        df_exp = df_exp[[
+            'ID_Cliente','Hora_Llegada_Reloj','Hora_Salida_Reloj','Num_Cajero_Asignado',
+            'Esperó_Fila','Minutos_Esperando_Fila','Tipo_Operación','Tiempo_Transacción_min',
+            'Eficiencia_Atención_%','Total_Tiempo_Sucursal_min'
+        ]]
+        csv_data = df_exp.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+        st.download_button("📊 Descargar CSV", data=csv_data,
+                           file_name="Resultados_Bancarios_Auditados.csv",
+                           mime="text/csv", use_container_width=True)
 
     with col_btn2:
         try:
-            crear_pdf(
-                st.session_state['df'],
-                st.session_state['analisis'],
-                st.session_state['prom_ocio'],
-                st.session_state['pct_tiempo_sistema'],
-                st.session_state['conteo']
-            )
+            crear_pdf(st.session_state['df'], st.session_state['analisis'],
+                      st.session_state['prom_ocio'], st.session_state['pct_tiempo_sistema'],
+                      st.session_state['conteo'])
             with open("Reporte_Simulacion.pdf", "rb") as f:
                 pdf_data = f.read()
-
-            st.download_button(
-                label="📄 Descargar PDF",
-                data=pdf_data,
-                file_name="Reporte_Ejecutivo_Bancario.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+            st.download_button("📄 Descargar PDF", data=pdf_data,
+                               file_name="Reporte_Ejecutivo_Bancario.pdf",
+                               mime="application/pdf", use_container_width=True)
         except Exception as e:
             st.error(f"❌ Error al generar PDF: {e}")
 
     with col_btn3:
         with st.popover("📧 Enviar por Correo", use_container_width=True):
             st.markdown("**Datos de Envío (Usa Gmail con Contraseña de Aplicación):**")
-            remitente = st.text_input("Tu Email:", placeholder="ejemplo@gmail.com")
-            password = st.text_input("App Pass:", type="password",
-                                     placeholder="Contraseña de aplicación")
-            destino = st.text_input("Destino:", placeholder="destino@correo.com")
+            remitente = st.text_input("Tu Email:",  placeholder="ejemplo@gmail.com")
+            password  = st.text_input("App Pass:", type="password", placeholder="Contraseña de aplicación")
+            destino   = st.text_input("Destino:",  placeholder="destino@correo.com")
 
             if st.button("Enviar Ahora", type="primary", use_container_width=True):
                 if not all([remitente, password, destino]):
@@ -674,30 +613,22 @@ if 'df' in st.session_state:
                 else:
                     try:
                         msg = MIMEMultipart()
-                        msg['From'] = remitente
-                        msg['To'] = destino
+                        msg['From']    = remitente
+                        msg['To']      = destino
                         msg['Subject'] = "Reporte Ejecutivo - Simulador Bancario"
-
-                        msg.attach(MIMEText(
-                            "Hola. Adjunto encontrarás el reporte generado "
-                            "automáticamente por el Simulador Bancario.", 'plain'))
-
-                        with open("Reporte_Simulacion.pdf", "rb") as adjunto:
+                        msg.attach(MIMEText("Hola. Adjunto encontrarás el reporte generado automáticamente por el Simulador Bancario.", 'plain'))
+                        with open("Reporte_Simulacion.pdf", "rb") as adj:
                             parte = MIMEBase("application", "octet-stream")
-                            parte.set_payload(adjunto.read())
+                            parte.set_payload(adj.read())
                         encoders.encode_base64(parte)
-                        parte.add_header("Content-Disposition",
-                                         "attachment; filename=Reporte_Simulacion.pdf")
+                        parte.add_header("Content-Disposition", "attachment; filename=Reporte_Simulacion.pdf")
                         msg.attach(parte)
-
-                        with smtplib.SMTP('smtp.gmail.com', 587) as servidor:
-                            servidor.starttls()
-                            servidor.login(remitente, password)
-                            servidor.sendmail(remitente, destino, msg.as_string())
-
+                        with smtplib.SMTP('smtp.gmail.com', 587) as srv:
+                            srv.starttls()
+                            srv.login(remitente, password)
+                            srv.sendmail(remitente, destino, msg.as_string())
                         st.success(f"¡PDF enviado con éxito a {destino}!")
                         st.balloons()
-
                     except smtplib.SMTPAuthenticationError:
                         st.error("❌ Error de Autenticación: Verifica tus datos.")
                     except Exception as e:
