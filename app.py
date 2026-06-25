@@ -289,7 +289,7 @@ def crear_pdf(
     pdf.output("Reporte_Simulacion.pdf")
 
 # ==========================================
-# 4. INTERFAZ STREAMLIT (VERSIÓN DEFINITIVA)
+# 4. INTERFAZ STREAMLIT (CON EJECUCIÓN DIRECTA)
 # ==========================================
 st.title("🏦 Sistema Bancario Multicajero")
 st.markdown("---")
@@ -305,12 +305,16 @@ clientes = st.sidebar.number_input(
     value=100
 )
 
-# ── Número de cajeros (VERSIÓN DEFINITIVA) ──────────────────────────
+# ── Número de cajeros ──────────────────────────────────────────────
 st.sidebar.markdown("**Número de cajeros activos:**")
 
 # Inicializar valor por defecto
 if 'cajeros_valor' not in st.session_state:
     st.session_state.cajeros_valor = 6
+
+# Inicializar flag de ejecución
+if 'ejecutar_simulacion' not in st.session_state:
+    st.session_state.ejecutar_simulacion = False
 
 # Mostrar el number_input con el valor de session_state
 cajeros = st.sidebar.number_input(
@@ -325,33 +329,34 @@ cajeros = st.sidebar.number_input(
 if cajeros != st.session_state.cajeros_valor:
     st.session_state.cajeros_valor = cajeros
 
-# ── BOTONES DE SUGERENCIA ────────────────────────────────────────────
+# ── BOTONES DE SUGERENCIA CON EJECUCIÓN DIRECTA ────────────────────
 st.sidebar.markdown("---")
 st.sidebar.markdown("**💡 Sugerencias de configuración:**")
 
 # Crear columnas para los botones
 col_sug1, col_sug2, col_sug3, col_sug4 = st.sidebar.columns(4)
 
-# Función para actualizar el valor y recargar
-def actualizar_cajeros(valor):
+# Función para ejecutar simulación con el número de cajeros seleccionado
+def ejecutar_simulacion_con_cajeros(valor):
     st.session_state.cajeros_valor = valor
+    st.session_state.ejecutar_simulacion = True
     st.rerun()
 
 with col_sug1:
     if st.button("⚠️ 3", key="sug_3", use_container_width=True):
-        actualizar_cajeros(3)
+        ejecutar_simulacion_con_cajeros(3)
 
 with col_sug2:
     if st.button("✅ 4", key="sug_4", use_container_width=True):
-        actualizar_cajeros(4)
+        ejecutar_simulacion_con_cajeros(4)
 
 with col_sug3:
     if st.button("👍 5", key="sug_5", use_container_width=True):
-        actualizar_cajeros(5)
+        ejecutar_simulacion_con_cajeros(5)
 
 with col_sug4:
     if st.button("📊 6", key="sug_6", use_container_width=True):
-        actualizar_cajeros(6)
+        ejecutar_simulacion_con_cajeros(6)
 
 # Mostrar leyenda
 st.sidebar.caption("3: Espera moderada | 4: Punto óptimo | 5: Poca espera | 6: Sin espera")
@@ -368,8 +373,15 @@ hora_apertura = st.sidebar.time_input(
     value=pd.Timestamp('09:00:00').time()
 )
 
-# ── Botón Ejecutar ──────────────────────────────────────────────────
+# ── Botón Ejecutar (mantenido para uso manual) ─────────────────────
 if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
+    st.session_state.ejecutar_simulacion = True
+    st.rerun()
+
+# ==========================================
+# LÓGICA DE EJECUCIÓN DE SIMULACIÓN
+# ==========================================
+if st.session_state.get('ejecutar_simulacion', False):
     
     # Limpiar imágenes anteriores
     for archivo in ["graficas_pasteles.jpg", "graficas_monitoreo.jpg", "grafica_fila_pdf.jpg"]:
@@ -409,6 +421,9 @@ if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     st.session_state['prom_ocio'] = prom_ocio
     st.session_state['pct_tiempo_sistema'] = pct_tiempo_sistema
     st.session_state['conteo'] = conteo_cajeros
+    
+    # Resetear flag para evitar ejecución repetida
+    st.session_state.ejecutar_simulacion = False
 
     # ── KPIs ────────────────────────────────────────────────────────────────
     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
