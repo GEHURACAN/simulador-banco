@@ -289,10 +289,87 @@ def crear_pdf(
     pdf.output("Reporte_Simulacion.pdf")
 
 # ==========================================
-# 4. FUNCIÓN PARA EJECUTAR SIMULACIÓN
+# 4. INTERFAZ STREAMLIT (VERSIÓN DEFINITIVA)
 # ==========================================
-def ejecutar_simulacion(clientes, cajeros, escenario, hora_apertura):
-    """Ejecuta la simulación y muestra los resultados."""
+st.title("🏦 Sistema Bancario Multicajero")
+st.markdown("---")
+
+st.sidebar.header("⚙️ Parámetros de Control")
+st.sidebar.info(f"📊 Media de llegadas (Alta demanda): {MEDIA_LLEGADA_ALTA} min")
+
+# ── Número de clientes ──────────────────────────────────────────────
+clientes = st.sidebar.number_input(
+    "Número de clientes a simular:", 
+    min_value=1, 
+    max_value=5000, 
+    value=100
+)
+
+# ── Número de cajeros (VERSIÓN DEFINITIVA) ──────────────────────────
+st.sidebar.markdown("**Número de cajeros activos:**")
+
+# Inicializar valor por defecto
+if 'cajeros_valor' not in st.session_state:
+    st.session_state.cajeros_valor = 6
+
+# Mostrar el number_input con el valor de session_state
+cajeros = st.sidebar.number_input(
+    "Número de cajeros activos:", 
+    min_value=1, 
+    max_value=500, 
+    value=st.session_state.cajeros_valor,
+    key="cajeros_input"
+)
+
+# Actualizar session_state cuando el usuario cambia el valor manualmente
+if cajeros != st.session_state.cajeros_valor:
+    st.session_state.cajeros_valor = cajeros
+
+# ── BOTONES DE SUGERENCIA ────────────────────────────────────────────
+st.sidebar.markdown("---")
+st.sidebar.markdown("**💡 Sugerencias de configuración:**")
+
+# Crear columnas para los botones
+col_sug1, col_sug2, col_sug3, col_sug4 = st.sidebar.columns(4)
+
+# Función para actualizar el valor y recargar
+def actualizar_cajeros(valor):
+    st.session_state.cajeros_valor = valor
+    st.rerun()
+
+with col_sug1:
+    if st.button("⚠️ 3", key="sug_3", use_container_width=True):
+        actualizar_cajeros(3)
+
+with col_sug2:
+    if st.button("✅ 4", key="sug_4", use_container_width=True):
+        actualizar_cajeros(4)
+
+with col_sug3:
+    if st.button("👍 5", key="sug_5", use_container_width=True):
+        actualizar_cajeros(5)
+
+with col_sug4:
+    if st.button("📊 6", key="sug_6", use_container_width=True):
+        actualizar_cajeros(6)
+
+# Mostrar leyenda
+st.sidebar.caption("3: Espera moderada | 4: Punto óptimo | 5: Poca espera | 6: Sin espera")
+
+# ── Escenario de Demanda ────────────────────────────────────────────
+escenario = st.sidebar.selectbox(
+    "Escenario de Demanda:", 
+    [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)]
+)
+
+# ── Hora de apertura ────────────────────────────────────────────────
+hora_apertura = st.sidebar.time_input(
+    "Hora de apertura:", 
+    value=pd.Timestamp('09:00:00').time()
+)
+
+# ── Botón Ejecutar ──────────────────────────────────────────────────
+if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
     
     # Limpiar imágenes anteriores
     for archivo in ["graficas_pasteles.jpg", "graficas_monitoreo.jpg", "grafica_fila_pdf.jpg"]:
@@ -332,7 +409,6 @@ def ejecutar_simulacion(clientes, cajeros, escenario, hora_apertura):
     st.session_state['prom_ocio'] = prom_ocio
     st.session_state['pct_tiempo_sistema'] = pct_tiempo_sistema
     st.session_state['conteo'] = conteo_cajeros
-    st.session_state['cajeros_actuales'] = cajeros
 
     # ── KPIs ────────────────────────────────────────────────────────────────
     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
@@ -506,100 +582,8 @@ def ejecutar_simulacion(clientes, cajeros, escenario, hora_apertura):
     st.pyplot(fig_fila)
     plt.close(fig_fila)
 
-
 # ==========================================
-# 5. INTERFAZ STREAMLIT
-# ==========================================
-st.title("🏦 Sistema Bancario Multicajero")
-st.markdown("---")
-
-st.sidebar.header("⚙️ Parámetros de Control")
-st.sidebar.info(f"📊 Media de llegadas (Alta demanda): {MEDIA_LLEGADA_ALTA} min")
-
-# ── Número de clientes ──────────────────────────────────────────────
-clientes = st.sidebar.number_input(
-    "Número de clientes a simular:", 
-    min_value=1, 
-    max_value=5000, 
-    value=100
-)
-
-# ── Número de cajeros ──────────────────────────────────────────────
-st.sidebar.markdown("**Número de cajeros activos:**")
-
-# Inicializar valor por defecto
-if 'cajeros_valor' not in st.session_state:
-    st.session_state.cajeros_valor = 6
-
-# Mostrar el number_input con el valor de session_state
-cajeros = st.sidebar.number_input(
-    "Número de cajeros activos:", 
-    min_value=1, 
-    max_value=500, 
-    value=st.session_state.cajeros_valor,
-    key="cajeros_input"
-)
-
-# Actualizar session_state cuando el usuario cambia el valor manualmente
-if cajeros != st.session_state.cajeros_valor:
-    st.session_state.cajeros_valor = cajeros
-
-# ── BOTONES DE SUGERENCIA CON EJECUCIÓN AUTOMÁTICA ─────────────────
-st.sidebar.markdown("---")
-st.sidebar.markdown("**💡 Sugerencias de configuración:**")
-
-# Crear columnas para los botones
-col_sug1, col_sug2, col_sug3, col_sug4 = st.sidebar.columns(4)
-
-# Función para ejecutar simulación con el número de cajeros seleccionado
-def ejecutar_con_cajeros(valor):
-    st.session_state.cajeros_valor = valor
-    st.session_state['ejecutar_automatico'] = True
-    st.rerun()
-
-with col_sug1:
-    if st.button("⚠️ 3", key="sug_3", use_container_width=True):
-        ejecutar_con_cajeros(3)
-
-with col_sug2:
-    if st.button("✅ 4", key="sug_4", use_container_width=True):
-        ejecutar_con_cajeros(4)
-
-with col_sug3:
-    if st.button("👍 5", key="sug_5", use_container_width=True):
-        ejecutar_con_cajeros(5)
-
-with col_sug4:
-    if st.button("📊 6", key="sug_6", use_container_width=True):
-        ejecutar_con_cajeros(6)
-
-# Mostrar leyenda
-st.sidebar.caption("3: Espera moderada | 4: Punto óptimo | 5: Poca espera | 6: Sin espera")
-
-# ── Escenario de Demanda ────────────────────────────────────────────
-escenario = st.sidebar.selectbox(
-    "Escenario de Demanda:", 
-    [("1. ALTA DEMANDA", 1), ("2. BAJA DEMANDA", 2)]
-)
-
-# ── Hora de apertura ────────────────────────────────────────────────
-hora_apertura = st.sidebar.time_input(
-    "Hora de apertura:", 
-    value=pd.Timestamp('09:00:00').time()
-)
-
-# ── Botón Ejecutar ──────────────────────────────────────────────────
-if st.sidebar.button("▶️ Ejecutar Simulación", type="primary"):
-    ejecutar_simulacion(clientes, cajeros, escenario, hora_apertura)
-
-# ── EJECUCIÓN AUTOMÁTICA DESDE BOTONES DE SUGERENCIA ──────────────
-if 'ejecutar_automatico' in st.session_state and st.session_state['ejecutar_automatico']:
-    st.session_state['ejecutar_automatico'] = False
-    cajeros_auto = st.session_state.cajeros_valor
-    ejecutar_simulacion(clientes, cajeros_auto, escenario, hora_apertura)
-
-# ==========================================
-# 6. EXPORTACIÓN MEJORADA
+# 5. EXPORTACIÓN MEJORADA
 # ==========================================
 if 'df' in st.session_state:
     st.markdown("---")
