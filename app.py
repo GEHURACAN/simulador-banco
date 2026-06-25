@@ -487,8 +487,9 @@ cajeros = st.sidebar.number_input(
     "Número de cajeros activos:",
     min_value=1, max_value=500,
     value=st.session_state.cajeros_valor,
-    key="cajeros_input"
+    key=f"cajeros_input_{st.session_state.cajeros_valor}"
 )
+# Sincronizar si el usuario lo cambia manualmente
 if cajeros != st.session_state.cajeros_valor:
     st.session_state.cajeros_valor = cajeros
 
