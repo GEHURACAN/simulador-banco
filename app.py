@@ -70,19 +70,13 @@ def simular_banco_multicajero(
         t_entre_llegadas = -media_llegada * np.log(llegadas_ri[i-1])
         h_llegada = h_llegada_ant + t_entre_llegadas
 
-        cajeros_disponibles = [
-            idx for idx, tiempo_libre in enumerate(tiempos_libres_cajeros)
-            if tiempo_libre <= h_llegada + PRECISION_NUMERICA
-        ]
+        h_inicio_posible = min(tiempos_libres_cajeros)
+        id_cajero = tiempos_libres_cajeros.index(h_inicio_posible)
 
-        if cajeros_disponibles:
-            id_cajero = min(cajeros_disponibles, key=lambda idx: tiempos_libres_cajeros[idx])
-            h_inicio = h_llegada
-            ocio_acumulado_cajeros[id_cajero] += max(0.0, h_llegada - tiempos_libres_cajeros[id_cajero])
-        else:
-            h_inicio_posible = min(tiempos_libres_cajeros)
-            id_cajero = tiempos_libres_cajeros.index(h_inicio_posible)
-            h_inicio = h_inicio_posible
+        if h_llegada > h_inicio_posible:
+            ocio_acumulado_cajeros[id_cajero] += (h_llegada - h_inicio_posible)
+
+        h_inicio = max(h_inicio_posible, h_llegada)
 
         ri_operacion = operacion_ri[i-1]
         if ri_operacion < PROB_RETIRO:
@@ -119,11 +113,6 @@ def simular_banco_multicajero(
     espera_calculada = (df['H.Inicio'] - df['H.Llegada']).round(6)
     df.insert(5, 'Esperó_Fila', np.where(espera_calculada > PRECISION_NUMERICA, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
-
-    t_final = df['H.Salida'].max() if not df.empty else 0
-    for idx, tiempo_libre in enumerate(tiempos_libres_cajeros):
-        if tiempo_libre < t_final:
-            ocio_acumulado_cajeros[idx] += (t_final - tiempo_libre)
 
     return df, ocio_acumulado_cajeros
 
