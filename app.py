@@ -49,7 +49,7 @@ DEPOSITO_MAX = 4.0
 PRECISION_NUMERICA = 1e-9
 
 # ==========================================
-# 1. LÓGICA DE SIMULACIÓN (OPTIMIZADA CON HEAPQ)
+# 1. LÓGICA DE SIMULACIÓN 
 # ==========================================
 def simular_banco_multicajero(
     num_clientes: int,
