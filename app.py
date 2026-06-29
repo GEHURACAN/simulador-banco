@@ -19,6 +19,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email import encoders
+import heapq
 
 warnings.filterwarnings("ignore")
 
@@ -48,7 +49,7 @@ DEPOSITO_MAX = 4.0
 PRECISION_NUMERICA = 1e-9
 
 # ==========================================
-# 1. LÓGICA DE SIMULACIÓN (CORREGIDA)
+# 1. LÓGICA DE SIMULACIÓN (OPTIMIZADA CON HEAPQ)
 # ==========================================
 def simular_banco_multicajero(
     num_clientes: int,
@@ -56,48 +57,36 @@ def simular_banco_multicajero(
     modo_demanda: int,
     progress_callback=None
 ) -> Tuple[pd.DataFrame, List[float]]:
-    """
-    Simula un sistema bancario con múltiples cajeros.
-    
-    CORRECCIONES APLICADAS:
-    1. Se fija la semilla aleatoria para resultados reproducibles
-    2. Se mejora el cálculo del ocio acumulado
-    3. Se optimiza la asignación de cajeros
-    4. Se agrega validación de tiempos de servicio
-    """
-    # Fijar semilla para reproducibilidad (opcional)
-    np.random.seed(42)
-    
     media_llegada = MEDIA_LLEGADA_ALTA if modo_demanda == 1 else MEDIA_LLEGADA_BAJA
     datos = []
     h_llegada_ant = 0
-    tiempos_libres_cajeros = [0.0] * num_cajeros
     ocio_acumulado_cajeros = [0.0] * num_cajeros
-    # Contador de clientes atendidos por cajero
-    clientes_por_cajero = [0] * num_cajeros
 
-    # Pre-generar arrays aleatorios para mejorar rendimiento
-    llegadas_ri = np.random.rand(num_clientes)
+    # Cola de cajeros: (tiempo_libre, id_cajero)
+    heap = [(0.0, i) for i in range(num_cajeros)]
+    heapq.heapify(heap)
+
+    # Variables aleatorias
+    llegadas_ri  = np.random.rand(num_clientes)
     operacion_ri = np.random.rand(num_clientes)
-    servicio_ri = np.random.rand(num_clientes)
+    servicio_ri  = np.random.rand(num_clientes)
 
     for i in range(1, num_clientes + 1):
-        # Tiempo entre llegadas (distribución exponencial)
-        t_entre_llegadas = -media_llegada * np.log(max(llegadas_ri[i-1], 1e-10))
+        # Tiempo entre llegadas (exponencial)
+        t_entre_llegadas = -media_llegada * np.log(llegadas_ri[i-1])
         h_llegada = h_llegada_ant + t_entre_llegadas
 
-        # Encontrar el cajero que estará libre más pronto
-        h_inicio_posible = min(tiempos_libres_cajeros)
-        id_cajero = tiempos_libres_cajeros.index(h_inicio_posible)
+        # Cajero más pronto disponible
+        h_inicio_posible, id_cajero = heapq.heappop(heap)
 
-        # Calcular ocio: si el cliente llega después de que el cajero esté libre
+        # Ocio acumulado
         if h_llegada > h_inicio_posible:
             ocio_acumulado_cajeros[id_cajero] += (h_llegada - h_inicio_posible)
-            h_inicio = h_llegada  # El cliente empieza inmediatamente
-        else:
-            h_inicio = h_inicio_posible  # El cliente espera a que el cajero se libere
 
-        # Determinar operación según probabilidades
+        # Inicio de servicio
+        h_inicio = max(h_inicio_posible, h_llegada)
+
+        # Tipo de operación
         ri_operacion = operacion_ri[i-1]
         if ri_operacion < PROB_RETIRO:
             operacion = "Retiro"
@@ -106,51 +95,37 @@ def simular_banco_multicajero(
         else:
             operacion = "Depósito"
 
-        # Tiempo de servicio según tipo de operación
+        # Tiempo de servicio
         ri_servicio = servicio_ri[i-1]
         if operacion in ["Retiro", "Transferencia"]:
-            # Distribución uniforme entre 1 y 2 minutos
             t_servicio = TIEMPO_SERVICIO_MIN + (TIEMPO_SERVICIO_MAX - TIEMPO_SERVICIO_MIN) * ri_servicio
-        else:  # Depósito
-            # Distribución normal truncada para depósitos (2-4 minutos)
+        else:
             t_servicio = norm.ppf(ri_servicio, loc=DEPOSITO_MEDIA, scale=DEPOSITO_DESVIACION)
+            if np.isnan(t_servicio):
+                t_servicio = DEPOSITO_MEDIA
             t_servicio = max(DEPOSITO_MIN, min(DEPOSITO_MAX, t_servicio))
 
-        # Validación de tiempo de servicio mínimo
-        t_servicio = max(0.1, t_servicio)
-
-        # Calcular hora de salida
-        h_salida = h_inicio + t_servicio
+        # Salida y tiempos
+        h_salida  = h_inicio + t_servicio
         t_sistema = h_salida - h_llegada
 
-        # Actualizar tiempo libre del cajero y contador
-        tiempos_libres_cajeros[id_cajero] = h_salida
-        clientes_por_cajero[id_cajero] += 1
+        # Actualizar cajero en heap
+        heapq.heappush(heap, (h_salida, id_cajero))
 
-        # Guardar datos del cliente
         datos.append([
-            i,                      # Cliente
-            id_cajero + 1,          # Cajero (1-indexed)
-            t_entre_llegadas,       # Tiempo entre llegadas
-            h_llegada,              # Hora de llegada
-            h_inicio,               # Hora de inicio de atención
-            operacion,              # Tipo de operación
-            t_servicio,             # Tiempo de servicio
-            h_salida,               # Hora de salida
-            t_sistema               # Tiempo en el sistema
+            i, id_cajero + 1, t_entre_llegadas, h_llegada, h_inicio,
+            operacion, t_servicio, h_salida, t_sistema
         ])
         h_llegada_ant = h_llegada
 
-        # Actualizar progreso
         if progress_callback and i % 100 == 0:
             progress_callback(i / num_clientes)
 
-    # Crear DataFrame con los resultados
     columnas = ["Cliente", "Cajero", "T.Entre", "H.Llegada", "H.Inicio",
                 "Operación", "T.Servicio", "H.Salida", "T.Sistema"]
     df = pd.DataFrame(datos, columns=columnas)
 
-    # Calcular tiempo de espera con precisión numérica
+    # Cálculo de espera en fila
     espera_calculada = (df['H.Inicio'] - df['H.Llegada']).round(6)
     df.insert(5, 'Esperó_Fila', np.where(espera_calculada > PRECISION_NUMERICA, 'Sí', 'No'))
     df.insert(6, 'T.Espera', espera_calculada)
@@ -160,6 +135,7 @@ def simular_banco_multicajero(
 # ==========================================
 # 2. ANÁLISIS PROFESIONAL
 # ==========================================
+# (todo el resto del código permanece igual, sin cambios)
 def generar_analisis_dinamico(
     df: pd.DataFrame,
     ocio_list: List[float],
